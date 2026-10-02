@@ -400,7 +400,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
   return (
     <>
       {/* Search Input Bar (Placed exactly in place of the deleted date box) */}
-      <div className="flex-1 min-w-[280px] max-w-lg" dir="rtl">
+      <div className="w-full min-w-0 sm:w-[280px] shrink-0" dir="rtl">
         <div className="relative flex items-center">
           <div className="relative w-full">
             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
@@ -413,9 +413,9 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   setIsModalOpen(true);
                 }
               }}
-              placeholder="البحث العام الشامل: أدخل الاسم أو الرقم (عسكري، سلاح، هاتف)..."
+              placeholder="بحث شامل بالاسم أو الرقم..."
               aria-label="البحث العام الشامل في النظام"
-              className="w-full h-11 pr-10 pl-24 rounded-xl text-xs font-medium border border-emerald-500/40 bg-black/40 text-white placeholder-neutral-400 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 shadow-inner"
+              className="w-full h-9 pr-10 pl-24 rounded-xl text-xs font-medium border border-emerald-500/40 bg-black/40 text-white placeholder-neutral-400 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 shadow-inner"
             />
             {searchTerm && (
               <button

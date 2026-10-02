@@ -277,3 +277,31 @@
     color: #111111 !important;
   }
 }
+
+/* Slow translucent smoke confined to the soldiers in the header. */
+.header-smoke {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 42%;
+  max-width: 620px;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(to left, #000 65%, transparent);
+}
+.header-smoke-cloud {
+  position: absolute;
+  left: -40%;
+  width: 150%;
+  height: 150%;
+  background:
+    radial-gradient(ellipse at 22% 60%, rgba(221, 237, 231, .48), transparent 32%),
+    radial-gradient(ellipse at 53% 48%, rgba(184, 210, 201, .42), transparent 28%),
+    radial-gradient(ellipse at 78% 62%, rgba(213, 227, 224, .35), transparent 30%);
+  filter: blur(9px);
+  will-change: transform, opacity;
+}
+.military-ui .nav-tab > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}

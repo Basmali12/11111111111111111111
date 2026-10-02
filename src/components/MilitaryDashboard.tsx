@@ -116,8 +116,8 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
     <div className="dashboard-shell flex min-h-[780px] gap-3" dir="rtl">
       <section className="min-w-0 flex-1 space-y-3">
         <div className="dashboard-welcome relative min-h-[118px] overflow-hidden rounded-2xl border border-emerald-500/20 p-4 lg:p-5">
-          <img src={`${import.meta.env.BASE_URL}header-military-banner.png`} alt="" aria-hidden="true" className="absolute inset-y-0 left-0 h-full w-3/4 object-cover object-right opacity-15 pointer-events-none" />
-          <div className="absolute inset-0 bg-linear-to-l from-[#071511]/90 via-[#071511]/75 to-[#071511]/40" />
+          <img src={`${import.meta.env.BASE_URL}header-military-banner.png`} alt="" aria-hidden="true" className="absolute inset-y-0 left-0 h-full w-3/4 object-cover object-right opacity-85 pointer-events-none" />
+          <div className="absolute inset-0 bg-linear-to-l from-[#071511]/95 via-[#071511]/35 to-[#071511]/5" />
           <div className="relative z-10 flex h-full flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <span className="welcome-avatar flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-emerald-300/70 bg-emerald-950/80 text-emerald-100">

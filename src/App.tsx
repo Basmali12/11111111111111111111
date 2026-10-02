@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   CheckCircle2,
   FolderSync,
@@ -43,6 +44,28 @@ const DEFAULT_CONFIG: AppConfig = {
   default_save_path: 'C:\\Data\\Exports',
   last_updated: new Date().toISOString(),
 };
+
+function AnimatedHeaderSmoke() {
+  const reducedMotion = useReducedMotion();
+  return (
+    <>
+      {[0, 1, 2].map((layer) => (
+        <motion.div
+          key={layer}
+          className="header-smoke-cloud"
+          style={{ top: `${layer * 22 - 35}%` }}
+          animate={reducedMotion ? { opacity: 0.2 } : {
+            x: ['-25%', '35%'],
+            y: [12, -18, 8],
+            scale: [0.85, 1.2, 1],
+            opacity: [0, 0.55, 0.4, 0],
+          }}
+          transition={{ duration: 7 + layer * 2, repeat: Infinity, ease: 'linear', delay: -layer * 3 }}
+        />
+      ))}
+    </>
+  );
+}
 
 export default function App() {
   const [activeSimulatorView, setActiveSimulatorView] = useState<SimulatorView>('home');
@@ -161,9 +184,12 @@ export default function App() {
             src={`${import.meta.env.BASE_URL}header-military-banner.png`}
             alt=""
             aria-hidden="true"
-            className="absolute inset-y-0 right-0 h-full w-[42%] max-w-[620px] object-cover object-right opacity-30 pointer-events-none"
+            className="absolute inset-y-0 right-0 h-full w-[42%] max-w-[620px] object-cover object-right opacity-70 pointer-events-none"
           />
-          <div className="absolute inset-0 bg-linear-to-l from-[#06110f]/15 via-[#06110f]/80 to-[#06110f] pointer-events-none" />
+          <div className="header-smoke" aria-hidden="true">
+            <AnimatedHeaderSmoke />
+          </div>
+          <div className="absolute inset-0 bg-linear-to-l from-[#06110f]/10 via-[#06110f]/45 to-[#06110f] pointer-events-none" />
           
           {/* الاسم والشعار المزخرف وشعار جمهورية العراق - يغطي المسافة بالكامل من أقصى اليسار حتى آخر جندي */}
           <div className="absolute inset-y-0 left-0 right-[35%] sm:right-[38%] lg:right-[42%] z-20 flex items-center pointer-events-none pl-2 sm:pl-4 pr-1">
@@ -182,7 +208,7 @@ export default function App() {
           <div className="flex items-center gap-1 overflow-x-auto py-1.5">
               <button
                 onClick={() => setActiveSimulatorView('home')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'home'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -196,7 +222,7 @@ export default function App() {
               {/* زر تبويبة الملفات (أضابير الفوج والسرايا) */}
               <button
                 onClick={() => setActiveSimulatorView('blank')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'blank'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -209,7 +235,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveSimulatorView('casualties')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'casualties'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -222,7 +248,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveSimulatorView('weapons')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'weapons'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -235,7 +261,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveSimulatorView('finance')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'finance'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -248,7 +274,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveSimulatorView('communications')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'communications'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -259,21 +285,10 @@ export default function App() {
                 <span>الاتصالات</span>
               </button>
 
-              <button
-                onClick={() => setActiveSimulatorView('settings')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  activeSimulatorView === 'settings'
-                    ? 'nav-tab-active text-white'
-                    : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
-                }`}
-                title="الانتقال إلى الإعدادات (حفظ C: واستيراد وتصدير Excel)"
-              >
-                <Settings className={`w-4 h-4 ${activeSimulatorView === 'settings' ? 'rotate-90 transition-transform duration-300' : ''}`} />
-                <span>⚙️ الإعدادات</span>
-              </button>
+
               <button
                 onClick={() => setActiveSimulatorView('vehicles')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'vehicles'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -285,7 +300,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveSimulatorView('attendance')}
-                className={`nav-tab flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'attendance'
                     ? 'nav-tab-active text-white'
                     : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
@@ -294,6 +309,18 @@ export default function App() {
               >
                 <CalendarDays className="w-4 h-4" />
                 <span>الغيابات والحضور</span>
+              </button>
+              <button
+                onClick={() => setActiveSimulatorView('settings')}
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeSimulatorView === 'settings'
+                    ? 'nav-tab-active text-white'
+                    : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'
+                }`}
+                title="الانتقال إلى الإعدادات (حفظ C: واستيراد وتصدير Excel)"
+              >
+                <Settings className={`w-4 h-4 ${activeSimulatorView === 'settings' ? 'rotate-90 transition-transform duration-300' : ''}`} />
+                <span>الإعدادات</span>
               </button>
             {isInstallable && (
               <button

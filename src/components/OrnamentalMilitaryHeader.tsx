@@ -1,45 +1,13 @@
 import React from 'react';
 
-// ميدالية العلم العراقي الدائرية الملكية
-const IraqiFlagMedallion: React.FC = () => (
-  <div className="relative flex items-center justify-center shrink-0">
-    {/* هالة توهج ذهبية محيطية ناعمة */}
-    <div
-      className="absolute inset-0 rounded-full bg-amber-400/25 blur-md scale-110 pointer-events-none"
-      style={{ animation: 'flagAmbientGlow 5s ease-in-out infinite' }}
-    />
-
-    {/* ميدالية العلم العراقي بإطار ذهبي ملكي متدرج */}
-    <div className="relative w-[76px] h-[76px] sm:w-[84px] sm:h-[84px] rounded-full p-[3px] bg-linear-to-b from-[#FFF5B8] via-[#D4AF37] to-[#78350F] shadow-[0_0_24px_rgba(245,215,127,0.45)]">
-      {/* إطار ذهبي داخلي دقيق */}
-      <div className="relative w-full h-full rounded-full overflow-hidden flex flex-col shadow-inner border border-amber-950/60">
-        {/* الثلث العلوي: أحمر العلم العراقي */}
-        <div className="h-[33.33%] w-full bg-[#CE1126]" />
-
-        {/* الثلث الأوسط: الأبيض الناصع مع عبارة الله أكبر بالخط الكوفي الأخضر الأصيل */}
-        <div className="h-[33.34%] w-full bg-[#FFFFFF] flex items-center justify-center relative">
-          <span
-            className="text-[#007A3D] font-black text-xs sm:text-[13px] tracking-normal leading-none select-none"
-            style={{
-              fontFamily: "'Cairo', 'Amiri', 'Traditional Arabic', sans-serif",
-              filter: 'drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.25))',
-            }}
-          >
-            الله أكبر
-          </span>
-        </div>
-
-        {/* الثلث السفلي: أسود العلم العراقي */}
-        <div className="h-[33.33%] w-full bg-[#0B0F12]" />
-
-        {/* لمعة بلورية زجاجية خفيفة على سطح العلم */}
-        <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/20 to-transparent pointer-events-none" />
-        <div className="absolute inset-0 rounded-full ring-1 ring-inset ring-black/30 pointer-events-none" />
-      </div>
-    </div>
-  </div>
+const IraqiEagleLogo: React.FC = () => (
+  <img
+    src="/iraq-eagle-transparent.png"
+    alt="شعار جمهورية العراق"
+    className="w-[76px] h-[88px] sm:w-[84px] sm:h-[96px] object-contain shrink-0"
+    draggable={false}
+  />
 );
-
 export const OrnamentalMilitaryHeader: React.FC = () => {
   return (
     <div className="relative z-20 flex items-center justify-between w-full h-full select-none px-2 sm:px-4" dir="rtl">
@@ -84,16 +52,6 @@ export const OrnamentalMilitaryHeader: React.FC = () => {
           50% {
             opacity: 1;
             transform: scale(1.2);
-          }
-        }
-        @keyframes flagAmbientGlow {
-          0%, 100% {
-            opacity: 0.25;
-            transform: scale(0.96);
-          }
-          50% {
-            opacity: 0.55;
-            transform: scale(1.04);
           }
         }
       `}</style>
@@ -186,9 +144,9 @@ export const OrnamentalMilitaryHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. ميدالية العلم العراقي فقط داخل الدائرة في أقصى طرف الشاشة على اليسار */}
+      {/* 2. شعار جمهورية العراق بخلفية شفافة في أقصى طرف الشاشة على اليسار */}
       <div className="shrink-0 flex items-center justify-center pr-2 pl-1">
-        <IraqiFlagMedallion />
+        <IraqiEagleLogo />
       </div>
     </div>
   );
