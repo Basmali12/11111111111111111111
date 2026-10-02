@@ -2,7 +2,7 @@ import React from 'react';
 
 const IraqiEagleLogo: React.FC = () => (
   <img
-    src="/iraq-eagle-transparent.png"
+    src={`${import.meta.env.BASE_URL}iraq-eagle-transparent.png`}
     alt="شعار جمهورية العراق"
     className="w-[76px] h-[88px] sm:w-[84px] sm:h-[96px] object-contain shrink-0"
     draggable={false}
