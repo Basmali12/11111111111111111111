@@ -1,0 +1,6 @@
+{
+  "name": "CustomTkinter Desktop App Studio",
+  "description": "واجهة وتطبيق سطح مكتب متطور بلغة Python باستخدام مكتبة CustomTkinter مع محاكي تفاعلي وكود برمجي كامل جاهز للتشغيل",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

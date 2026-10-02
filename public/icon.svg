@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded card -->
+  <rect width="512" height="512" rx="100" fill="url(#bg)" />
+  <rect x="16" y="16" width="480" height="480" rx="88" fill="none" stroke="#334155" stroke-width="4" />
+
+  <!-- Outer Emblem Shield -->
+  <path d="M 256 80 L 390 140 C 390 280 256 390 256 420 C 256 390 122 280 122 140 Z" fill="url(#shieldGrad)" filter="drop-shadow(0 12px 24px rgba(0,0,0,0.5))" />
+  
+  <!-- Inner Shield Outline -->
+  <path d="M 256 104 L 368 155 C 368 268 256 362 256 390 C 256 362 144 268 144 155 Z" fill="#0f172a" opacity="0.4" />
+
+  <!-- Database & Star Icons -->
+  <!-- Golden Star -->
+  <polygon points="256,150 268,185 305,185 275,207 286,242 256,220 226,242 237,207 207,185 244,185" fill="url(#goldGrad)" />
+
+  <!-- Database Cylinders -->
+  <!-- Top Disk -->
+  <ellipse cx="256" cy="280" rx="65" ry="18" fill="#38bdf8" />
+  <path d="M 191 280 v 24 C 191 314 321 314 321 304 v -24 Z" fill="#0284c7" />
+  
+  <!-- Middle Disk -->
+  <ellipse cx="256" cy="315" rx="65" ry="18" fill="#38bdf8" opacity="0.9" />
+  <path d="M 191 315 v 24 C 191 349 321 349 321 339 v -24 Z" fill="#0369a1" />
+
+  <!-- Bottom Disk -->
+  <ellipse cx="256" cy="350" rx="65" ry="18" fill="#38bdf8" opacity="0.8" />
+  <path d="M 191 350 v 24 C 191 384 321 384 321 374 v -24 Z" fill="#075985" />
+</svg>
