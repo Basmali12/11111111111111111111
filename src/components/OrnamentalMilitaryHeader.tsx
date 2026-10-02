@@ -1,8 +1,9 @@
+import { iraqLogo } from '../brandAssets';
 import React from 'react';
 
 const IraqiEagleLogo: React.FC = () => (
   <img
-    src={`${import.meta.env.BASE_URL}iraq-eagle-transparent.png`}
+    src={iraqLogo}
     alt="شعار جمهورية العراق"
     className="w-[76px] h-[88px] sm:w-[84px] sm:h-[96px] object-contain shrink-0"
     draggable={false}

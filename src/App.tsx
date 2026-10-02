@@ -1,3 +1,4 @@
+import { militaryBanner } from './brandAssets';
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
@@ -133,7 +134,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [isAppStorageModalOpen, setIsAppStorageModalOpen] = useState<boolean>(false);
   const [appRecords] = useState(INITIAL_MILITARY_RECORDS);
-  const { isInstallable, promptInstall } = usePwaInstall();
+  const { isInstallable, isInstalled, promptInstall } = usePwaInstall();
 
   // Sync config to localStorage
   const updateConfig = (newProps: Partial<AppConfig>) => {
@@ -181,7 +182,7 @@ export default function App() {
         <div className="relative h-[104px] overflow-hidden border-b border-emerald-500/15">
           {/* خلفية الجنود والراية العراقية على الجانب الأيمن */}
           <img
-            src={`${import.meta.env.BASE_URL}header-military-banner.png`}
+            src={militaryBanner}
             alt=""
             aria-hidden="true"
             className="absolute inset-y-0 right-0 h-full w-[42%] max-w-[620px] object-cover object-right opacity-70 pointer-events-none"
@@ -322,18 +323,25 @@ export default function App() {
                 <Settings className={`w-4 h-4 ${activeSimulatorView === 'settings' ? 'rotate-90 transition-transform duration-300' : ''}`} />
                 <span>الإعدادات</span>
               </button>
-            {isInstallable && (
-              <button
-                onClick={promptInstall}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-lg transition-colors shadow-xs whitespace-nowrap cursor-pointer animate-pulse"
-                title="تثبيت التطبيق كبرنامج مستقل لسطح المكتب يعمل أوفلاين بدون إنترنت وبدون بايثون"
-              >
-                <span>💻 تثبيت كبرنامج لسطح المكتب</span>
-              </button>
-            )}
+
           </div>
         </div>
       </header>
+            {!isInstalled && (
+              <button
+                onClick={async () => {
+                  if (isInstallable) {
+                    await promptInstall();
+                  } else {
+                    window.alert('لتثبيت التطبيق في Microsoft Edge:\nافتح قائمة ⋯ ثم المزيد من الأدوات ← التطبيقات ← تثبيت هذا الموقع كتطبيق (أو أيقونة التثبيت بجانب العنوان).\nبعد التثبيت اختر إنشاء اختصار على سطح المكتب.\nإذا كان مثبتًا مسبقًا افتح edge://apps لإدارته.');
+                  }
+                }}
+                className="fixed bottom-5 left-5 z-50 flex items-center gap-2 px-4 py-3 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-600 border border-emerald-300/50 rounded-xl transition-colors shadow-lg whitespace-nowrap cursor-pointer"
+                title="تثبيت التطبيق كبرنامج مستقل لسطح المكتب يعمل أوفلاين بدون إنترنت وبدون بايثون"
+              >
+                <span>💻 تثبيت التطبيق على سطح المكتب</span>
+              </button>
+            )}
 
       {/* Main Content Viewport: Complete Standalone System */}
       <main className="relative z-10 flex-1 max-w-[1600px] w-full mx-auto p-3 lg:p-4">

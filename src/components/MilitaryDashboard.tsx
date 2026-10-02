@@ -1,3 +1,4 @@
+import { militaryBanner, sidebarPortrait, sidebarSoldiers } from '../brandAssets';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft,
@@ -116,7 +117,7 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
     <div className="dashboard-shell flex min-h-[780px] gap-3" dir="rtl">
       <section className="min-w-0 flex-1 space-y-3">
         <div className="dashboard-welcome relative min-h-[118px] overflow-hidden rounded-2xl border border-emerald-500/20 p-4 lg:p-5">
-          <img src={`${import.meta.env.BASE_URL}header-military-banner.png`} alt="" aria-hidden="true" className="absolute inset-y-0 left-0 h-full w-3/4 object-cover object-right opacity-85 pointer-events-none" />
+          <img src={militaryBanner} alt="" aria-hidden="true" className="absolute inset-y-0 left-0 h-full w-3/4 object-cover object-right opacity-85 pointer-events-none" />
           <div className="absolute inset-0 bg-linear-to-l from-[#071511]/95 via-[#071511]/35 to-[#071511]/5" />
           <div className="relative z-10 flex h-full flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -234,13 +235,13 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
         <div className="sidebar-portrait relative z-10 mx-3 mt-3 min-h-[360px] overflow-hidden rounded-2xl border border-emerald-400/15 bg-black/10">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(16,185,129,0.13),transparent_62%)]" />
           <img
-            src={`${import.meta.env.BASE_URL}sidebar-portrait-transparent.png`}
+            src={sidebarPortrait}
             alt="صورة شخصية توضيحية"
             className="relative h-full w-full object-contain object-center p-2 drop-shadow-[0_0_18px_rgba(52,211,153,0.20)]"
           />
         </div>
         <div className="relative mt-auto min-h-[315px] overflow-hidden">
-          <img src={`${import.meta.env.BASE_URL}sidebar-soldiers.png`} alt="جنود عراقيون يحملون العلم العراقي" className="absolute inset-x-0 bottom-0 w-full h-[315px] object-cover object-top opacity-38" />
+          <img src={sidebarSoldiers} alt="جنود عراقيون يحملون العلم العراقي" className="absolute inset-x-0 bottom-0 w-full h-[315px] object-cover object-top opacity-38" />
           <div className="absolute inset-0 bg-linear-to-b from-[#06110f] via-[#06110f]/20 to-[#06110f]/85" />
           <div className="absolute bottom-5 inset-x-4 text-center"><p className="text-sm font-black text-emerald-200 leading-6">قوتنا في بياناتنا<br />وسندنا في رجالنا</p><div className="h-px bg-emerald-500/30 my-3" /><p className="text-[10px] text-neutral-400">هيئة الحشد الشعبي<br />اللواء الثاني والعشرون</p></div>
         </div>
