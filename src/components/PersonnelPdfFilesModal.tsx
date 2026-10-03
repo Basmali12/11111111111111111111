@@ -1,3 +1,4 @@
+import { AttachmentPreview } from './AttachmentPreview';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Download, FileImage, FileText, LoaderCircle, Plus, Trash2, X } from 'lucide-react';
@@ -46,6 +47,7 @@ export const PersonnelPdfFilesModal: React.FC<PersonnelPdfFilesModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<StoredPersonnelFile | null>(null);
   const [previewTitle, setPreviewTitle] = useState('');
   const [pendingDeleteFile, setPendingDeleteFile] = useState<StoredPersonnelFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,10 +120,6 @@ export const PersonnelPdfFilesModal: React.FC<PersonnelPdfFilesModalProps> = ({
   };
 
   const openFile = async (file: StoredPersonnelFile) => {
-    if (getFileKind(file) === 'pdf') {
-      downloadPdf(file);
-      return;
-    }
 
     try {
       const storedFile = await getPersonnelFile(file.id);
@@ -129,6 +127,7 @@ export const PersonnelPdfFilesModal: React.FC<PersonnelPdfFilesModalProps> = ({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(storedFile.blob));
       setPreviewTitle(storedFile.fileName);
+      setPreviewFile(storedFile);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'تعذر فتح الملف.';
       onShowToast('warning', 'تعذر فتح الملف', message);
@@ -151,6 +150,7 @@ export const PersonnelPdfFilesModal: React.FC<PersonnelPdfFilesModalProps> = ({
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setPreviewTitle('');
+    setPreviewFile(null);
   };
 
   return createPortal(
@@ -192,25 +192,7 @@ export const PersonnelPdfFilesModal: React.FC<PersonnelPdfFilesModalProps> = ({
 
         <div className="flex-1 overflow-y-auto p-5">
           {previewUrl ? (
-            <div className="flex flex-col gap-3 min-h-[70vh]">
-              <div className="flex items-center justify-between gap-3">
-                <h4 className="text-sm font-bold truncate">{previewTitle}</h4>
-                <button
-                  type="button"
-                  onClick={closePreview}
-                  className="px-4 py-2 rounded-xl text-xs font-bold cursor-pointer shrink-0"
-                  style={{ backgroundColor: isDarkMode ? '#333333' : '#e2e8f0', color: isDarkMode ? '#ffffff' : '#1e293b' }}
-                >
-                  رجوع إلى الأضبارة
-                </button>
-              </div>
-              <div
-                className="w-full flex-1 min-h-[65vh] rounded-xl border flex items-center justify-center overflow-auto p-4"
-                style={{ backgroundColor: isDarkMode ? '#161616' : '#f8fafc', borderColor: isDarkMode ? '#3d3d3d' : '#cbd5e1' }}
-              >
-                <img src={previewUrl} alt={`معاينة ${previewTitle}`} className="max-w-full max-h-[65vh] object-contain" />
-              </div>
-            </div>
+            <AttachmentPreview src={previewUrl} name={previewTitle} isPdf={previewFile ? getFileKind(previewFile) === 'pdf' : false} onClose={closePreview} onDelete={previewFile ? () => deleteFile(previewFile) : undefined} />
           ) : (
             <div>
               <input

@@ -39,16 +39,10 @@ export const MartyrDocuments: React.FC<{
     {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
     {documents.map((document, index) => <div key={index} className="flex flex-wrap items-center gap-2 border border-neutral-600 rounded-lg p-2">
       <span className="text-xs break-all flex-1">{document.name}</span>
-      {document.type === 'application/pdf' ? <button type="button" onClick={() => setPreview(document)} className="text-xs text-sky-400">عرض PDF {document.name}</button> : <ImagePreviewButton src={document.dataUrl} name={document.name} />}
+      <ImagePreviewButton src={document.dataUrl} name={document.name} onDelete={onChange ? () => onChange(documents.filter((_, i) => i !== index)) : undefined} />
       {onChange && <><label className="text-xs text-blue-400 cursor-pointer">استبدال
         <input type="file" className="sr-only" aria-label={'استبدال المستمسك ' + (index + 1)} accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" disabled={busy} onChange={event => { void upload(event.target.files, index); event.target.value = ''; }} />
       </label><button type="button" disabled={busy} aria-label={'حذف المستمسك ' + (index + 1)} onClick={() => onChange(documents.filter((_, i) => i !== index))} className="text-xs text-red-400">حذف</button></>}
     </div>)}
-    {preview && createPortal(<div className="fixed inset-0 z-[130] bg-black/85 p-4 flex items-center justify-center" dir="rtl">
-      <div role="dialog" aria-modal="true" aria-label={'معاينة ' + preview.name} className="w-full max-w-5xl h-[90vh] flex flex-col rounded-xl bg-[#18201f] text-white overflow-hidden">
-        <div className="flex justify-between items-center p-3 gap-3"><strong className="truncate">{preview.name}</strong><button type="button" aria-label="إغلاق معاينة المستمسك" onClick={() => setPreview(null)}>إغلاق ✕</button></div>
-        <PdfDocumentPreview dataUrl={preview.dataUrl} />
-      </div>
-    </div>, document.body)}
   </section>;
 };

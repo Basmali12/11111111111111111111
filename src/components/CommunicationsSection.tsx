@@ -1,3 +1,4 @@
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -105,7 +106,9 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
   onBack,
   onShowToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<CommTab>('general');
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'communications' ? target : null;
+  const [activeTab, setActiveTab] = useState<CommTab>(searchTarget?.record._source === 'قسم اتصالات الفوج' ? 'regiment' : 'general');
 
   // General records state
   const [generalRecords, setGeneralRecords] = useState<CommunicationRecord[]>(() =>
@@ -137,10 +140,10 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
   };
 
   const selection = useExcelSelection(currentRecords, (r) => r.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState<CommunicationFormState>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);

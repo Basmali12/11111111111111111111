@@ -1,3 +1,4 @@
+import { rememberBackupDirectory, readBackupDirectory } from './backupDirectoryStorage';
 import * as XLSX from 'xlsx';
 import type { MilitaryRecord, AppConfig } from './types';
 import { TAB_SCHEMA, getFullDetailsForRecord } from './mockData';
@@ -12,14 +13,17 @@ export interface StorageStatus {
 }
 
 // Global cached directory handle for the session
-let activeDirectoryHandle: any = null;
+const ACTIVE_BACKUP_TARGET = Symbol.for('military.activeBackupTarget');
+const backupTargetCache = globalThis as typeof globalThis & { [ACTIVE_BACKUP_TARGET]?: any };
 
 export function getActiveDirectoryHandle(): any {
-  return activeDirectoryHandle;
+  return backupTargetCache[ACTIVE_BACKUP_TARGET] || null;
 }
 
 export function setActiveDirectoryHandle(handle: any) {
-  activeDirectoryHandle = handle;
+  backupTargetCache[ACTIVE_BACKUP_TARGET] = handle;
+  window.dispatchEvent(new Event('military-backup-changed'));
+  void rememberBackupDirectory(handle).catch(() => {});
 }
 
 export function isFileSystemAccessSupported(): boolean {
@@ -52,7 +56,8 @@ export async function requestComputerDirectoryPicker(): Promise<{
 
     // Verify or request readwrite permission
     if (dirHandle.requestPermission) {
-      const permission = await dirHandle.requestPermission({ mode: 'readwrite' });
+      const existingPermission = dirHandle.queryPermission ? await dirHandle.queryPermission({ mode: 'readwrite' }) : 'prompt';
+      const permission = existingPermission === 'granted' ? existingPermission : await dirHandle.requestPermission({ mode: 'readwrite' });
       if (permission !== 'granted') {
         return {
           success: false,
@@ -61,7 +66,7 @@ export async function requestComputerDirectoryPicker(): Promise<{
       }
     }
 
-    activeDirectoryHandle = dirHandle;
+
     return {
       success: true,
       handle: dirHandle,
@@ -69,7 +74,7 @@ export async function requestComputerDirectoryPicker(): Promise<{
     };
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      return { success: false, error: 'تم إلغاء اختيار المجلد من قبل المستخدم.' };
+      return { success: false, error: 'لم تُكمل نافذة اختيار المجلد منح الوصول؛ لم يُحفظ أي ملف. اختر المجلد ثم اضغط «اختيار مجلد»، أو استخدم اختيار ملف النسخة مباشرة. (' + (err.message || err.name) + ')' };
     }
     return {
       success: false,
@@ -130,6 +135,8 @@ export async function saveDatabaseDirectlyToDisk(
   fileName: string = 'database.xlsx'
 ): Promise<{ success: boolean; error?: string; bytesWritten?: number }> {
   try {
+    // A selected backup file is maintained by the comprehensive backup writer, never overwritten with main-only data.
+    if (dirHandle?.kind === 'file') return {success:true,bytesWritten:0};
     const excelBuffer = generateExcelWorkbookBuffer(records);
 
     if (dirHandle) {
@@ -198,4 +205,29 @@ export function triggerExcelDownload(records: MilitaryRecord[], fileName: string
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export async function reconnectBackupDirectory(requestPermission = false): Promise<boolean> {
+  if (getActiveDirectoryHandle()) return true;
+  try {
+    const handle = await readBackupDirectory();
+    if (getActiveDirectoryHandle()) return true;
+    if (handle) {
+      let permission = await handle.queryPermission({mode:'readwrite'});
+      if (permission !== 'granted' && requestPermission) permission = await handle.requestPermission({mode:'readwrite'});
+      if (permission === 'granted') { setActiveDirectoryHandle(handle); return true; }
+    }
+  } catch { /* The user can reconnect through the folder picker. */ }
+  return false;
+}
+
+export async function requestBackupFilePicker(): Promise<{success:boolean;handle?:any;name?:string;error?:string}> {
+  if (typeof (window as any).showSaveFilePicker !== 'function') return {success:false,error:'المتصفح الحالي لا يدعم اختيار ملف للحفظ المباشر. افتح النظام في Microsoft Edge.'};
+  try {
+    const handle = await (window as any).showSaveFilePicker({
+      id:'military_complete_backup', suggestedName:'نسخة_النظام_الاحتياطية.xlsx',
+      types:[{description:'Excel — نسخة شاملة',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}],
+    });
+    return {success:true,handle,name:handle.name};
+  } catch(error:any) {return {success:false,error:error.name==='AbortError'?'لم تكتمل نافذة حفظ الملف؛ لم يُحفظ أي ملف.':error.message || 'تعذر اختيار ملف النسخة.'};}
 }

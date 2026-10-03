@@ -1,5 +1,6 @@
+import { AccessGate } from './components/AccessGate';
 import { militaryBanner } from './brandAssets';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   CheckCircle2,
@@ -18,6 +19,7 @@ import {
   WalletCards,
   Radio,
   Truck,
+  LockKeyhole,
   CalendarDays,
   Minimize2,
   Maximize2,
@@ -68,7 +70,15 @@ function AnimatedHeaderSmoke() {
   );
 }
 
-export default function App() {
+function SystemApp() {
+  useEffect(() => {
+    const header = document.querySelector('.app-shell-header');
+    if (!header) return;
+    const update = () => document.documentElement.style.setProperty('--app-header-height', header.getBoundingClientRect().height + 'px');
+    update();
+    const observer = new ResizeObserver(update); observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
   const [activeSimulatorView, setActiveSimulatorView] = useState<SimulatorView>('home');
   const [config, setConfig] = useState<AppConfig>(() => {
     try {
@@ -300,6 +310,14 @@ export default function App() {
                 <span>الآليات</span>
               </button>
               <button
+                onClick={() => setActiveSimulatorView('security')}
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeSimulatorView === 'security' ? 'nav-tab-active text-white' : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'}`}
+                title="فتح شعبة الأمن"
+              >
+                <LockKeyhole className="w-4 h-4" />
+                <span>الأمن</span>
+              </button>
+              <button
                 onClick={() => setActiveSimulatorView('attendance')}
                 className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'attendance'
@@ -364,7 +382,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto px-4 lg:px-6 flex flex-wrap items-center justify-between gap-3" dir="rtl">
           <div className="flex items-center gap-2 text-emerald-300"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /><span>النظام يعمل بشكل طبيعي</span><span className="text-neutral-600">·</span><span className="text-neutral-400">قاعدة البيانات متصلة</span></div>
           <p>جميع الحقوق محفوظة — منظومة السجلات العسكرية</p>
-          <span className="font-mono text-neutral-400">v4.2.1</span>
+          <span className="font-mono text-neutral-400">v4.3.0</span>
         </div>
       </footer>
 
@@ -384,3 +402,5 @@ export default function App() {
     </div>
   );
 }
+
+export default function App() { return <AccessGate><SystemApp /></AccessGate>; }

@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { ArrowRight, CalendarCheck2, CalendarX2, FileDown, FileImage, FileUp, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
@@ -30,8 +32,19 @@ const readRecords = (kind: AttendanceKind): AttendanceRecord[] => {
 };
 
 const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowToast }) => {
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'additional' && ['الغيابات', 'الحضور'].includes(target.source || '') ? target : null;
   const [records, setRecords] = useState<AttendanceRecord[]>(() => readRecords(kind));
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record.fullName || '');
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(storageKey(kind)) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(storageKey(kind), JSON.stringify(next));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<AttendanceDraft>(emptyAttendanceDraft);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -142,7 +155,7 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
         <label className="text-xs font-bold sm:col-span-2 lg:col-span-3">الملاحظات<textarea value={form.notes} onChange={(event) => update('notes', event.target.value)} rows={2} className={inputClass} /></label>
         <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-emerald-500/30 p-3 space-y-2">
           <label className="text-xs font-bold flex items-center gap-2 cursor-pointer"><FileImage className="w-4 h-4 text-emerald-400" /> رفع مستند صورة <input type="file" accept="image/*" className="sr-only" aria-label="رفع مستند صورة" onChange={(event) => { selectImage(event.target.files?.[0]); event.target.value = ''; }} /></label>
-          {form.attachmentDataUrl && <div className="flex flex-wrap items-center gap-3"><span className="text-xs truncate max-w-64">{form.attachmentName}</span><ImagePreviewButton src={form.attachmentDataUrl} name={form.attachmentName || 'المستند'} /><button type="button" onClick={() => setForm((current) => ({ ...current, attachmentName: '', attachmentDataUrl: '' }))} className="text-xs text-red-400 cursor-pointer">إزالة الصورة</button></div>}
+          {form.attachmentDataUrl && <div className="flex flex-wrap items-center gap-3"><span className="text-xs truncate max-w-64">{form.attachmentName}</span><ImagePreviewButton src={form.attachmentDataUrl} onDelete={() => removeAttachment(form.attachmentDataUrl!, undefined)} name={form.attachmentName || 'المستند'} /><button type="button" onClick={() => setForm((current) => ({ ...current, attachmentName: '', attachmentDataUrl: '' }))} className="text-xs text-red-400 cursor-pointer">إزالة الصورة</button></div>}
         </div>
       </div>
       <div className="flex gap-2"><button type="submit" className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer">حفظ</button><button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl border border-neutral-500/40 text-xs font-bold cursor-pointer">إلغاء</button></div>
@@ -154,7 +167,7 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
         {selection.enabled && <th className="p-3">تحديد</th>}<th className="p-3">تسلسل</th><th className="p-3">الاسم الثلاثي</th><th className="p-3">الفوج أو القسم</th>{kind === 'absence' && <th className="p-3">سبب الغياب</th>}<th className="p-3">تاريخ الوجبة</th><th className="p-3">من</th><th className="p-3">إلى</th><th className="p-3">الملاحظات</th><th className="p-3">المستند</th><th className="p-3">الإجراءات</th>
       </tr></thead><tbody>{filtered.map((record) => <tr key={record.id} className="border-b border-emerald-500/15 hover:bg-emerald-500/5">
         {selection.enabled && <td className="p-3"><ExcelRowCheckbox checked={selection.selectedIds.has(record.id)} label={record.fullName} onChange={() => selection.toggle(record.id)} /></td>}
-        <td className="p-3">{record.sequence}</td><td className="p-3 font-bold">{record.fullName}</td><td className="p-3">{record.unitOrDepartment}</td>{kind === 'absence' && <td className="p-3">{record.absenceReason}</td>}<td className="p-3 whitespace-nowrap">{record.shiftDate}</td><td className="p-3 whitespace-nowrap">{record.fromDate}</td><td className="p-3 whitespace-nowrap">{record.toDate}</td><td className="p-3 max-w-52 break-words">{record.notes || '—'}</td><td className="p-3">{record.attachmentDataUrl ? <ImagePreviewButton src={record.attachmentDataUrl} name={record.attachmentName || 'المستند'} className="text-sky-400 underline text-xs flex items-center gap-1 cursor-pointer" /> : '—'}</td>
+        <td className="p-3">{record.sequence}</td><td className="p-3 font-bold">{record.fullName}</td><td className="p-3">{record.unitOrDepartment}</td>{kind === 'absence' && <td className="p-3">{record.absenceReason}</td>}<td className="p-3 whitespace-nowrap">{record.shiftDate}</td><td className="p-3 whitespace-nowrap">{record.fromDate}</td><td className="p-3 whitespace-nowrap">{record.toDate}</td><td className="p-3 max-w-52 break-words">{record.notes || '—'}</td><td className="p-3">{record.attachmentDataUrl ? <ImagePreviewButton src={record.attachmentDataUrl} onDelete={() => removeAttachment(record.attachmentDataUrl!, record.id)} name={record.attachmentName || 'المستند'} className="text-sky-400 underline text-xs flex items-center gap-1 cursor-pointer" /> : '—'}</td>
         <td className="p-3"><div className="flex items-center gap-2"><button type="button" onClick={() => startEdit(record)} aria-label={`تعديل ${record.fullName}`} className="p-2 rounded-lg border border-sky-500/40 text-sky-400 cursor-pointer"><Pencil className="w-4 h-4" /></button><button type="button" onClick={() => setPendingDeleteId(record.id)} aria-label={`حذف ${record.fullName}`} className="p-2 rounded-lg border border-red-500/40 text-red-400 cursor-pointer"><Trash2 className="w-4 h-4" /></button></div></td>
       </tr>)}</tbody></table>
       {!filtered.length && <div className="p-8 text-center text-sm text-neutral-400">{query ? 'لا توجد نتائج للبحث.' : `لا توجد سجلات ${titleOf(kind)} بعد.`}</div>}
@@ -164,7 +177,9 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
 };
 
 export const AttendanceSection: React.FC<Props> = ({ isDarkMode, onBack, onShowToast }) => {
-  const [kind, setKind] = useState<AttendanceKind>('absence');
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'additional' && ['الغيابات', 'الحضور'].includes(target.source || '') ? target : null;
+  const [kind, setKind] = useState<AttendanceKind>(searchTarget?.source === 'الحضور' ? 'presence' : 'absence');
   return <div dir="rtl" className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold">الغيابات والحضور</h1><p className="text-xs text-neutral-400 mt-1">سجلّان منفصلان للغياب والحضور والمستندات</p></div><button type="button" onClick={onBack} className="px-4 py-2.5 rounded-xl border border-emerald-500/40 text-xs font-bold flex items-center gap-2 cursor-pointer"><ArrowRight className="w-4 h-4" /> رجوع</button></div>
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="نوع سجل الغيابات والحضور">

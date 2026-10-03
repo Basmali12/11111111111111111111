@@ -1,3 +1,4 @@
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useState } from 'react';
 import { FighterRecords } from './FighterRecords';
 import { FaultyWeaponsRecords } from './FaultyWeaponsRecords';
@@ -11,7 +12,8 @@ interface ArmamentRecordsProps {
 }
 
 export const ArmamentRecords: React.FC<ArmamentRecordsProps> = ({ isDarkMode, onBack, onShowToast }) => {
-  const [activeSection, setActiveSection] = useState<ArmamentSection>('fighters');
+  const searchTarget = useSearchRecordTarget();
+  const [activeSection, setActiveSection] = useState<ArmamentSection>(searchTarget?.record._source === 'الأسلحة العاطلة والشاغل' ? 'faulty-weapons' : 'fighters');
 
   return (
     <div className="flex flex-col gap-4" dir="rtl">

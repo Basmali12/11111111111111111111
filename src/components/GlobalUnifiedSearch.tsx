@@ -1,3 +1,4 @@
+import { SearchRecordNavigation } from './SearchRecordNavigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -34,6 +35,12 @@ interface GlobalUnifiedSearchProps {
 }
 
 const FOLDER_NAMES: Record<string, string> = {
+  file_sareya_1: 'السرية الأولى',
+  file_sareya_2: 'السرية الثانية',
+  file_sareya_3: 'السرية الثالثة',
+  file_sareya_4: 'السرية الرابعة',
+  file_maqar: 'مقر الفوج',
+  file_movements: 'الحركات',
   file_1: 'الملف 1',
   file_2: 'الملف 2',
   file_3: 'الملف 3',
@@ -51,7 +58,7 @@ const FOLDER_NAMES: Record<string, string> = {
   file_wared: 'الملف الوارد',
   file_readiness: 'شعبة الاستعداد',
   file_vehicles: 'شعبة الآليات',
-  file_misc: 'الملفات المتنوعة',
+  file_misc: 'أضبارة كتب المنتسبين',
 };
 
 const safeParseStorage = <T,>(key: string, fallback: T): T => {
@@ -65,6 +72,15 @@ const safeParseStorage = <T,>(key: string, fallback: T): T => {
   }
 };
 
+const searchableText = (value: unknown): string => {
+  if (typeof value === 'string') return value.startsWith('data:') ? '' : value;
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return value.map(searchableText).join(' ');
+  if (value && typeof value === 'object') return Object.entries(value)
+    .filter(([key]) => !/^(id|.*DataUrl|.*Base64)$/i.test(key))
+    .map(([, item]) => searchableText(item)).join(' ');
+  return '';
+};
 const normalizeSearch = (text: string): string => {
   if (!text) return '';
   return normalizeArabic(text)
@@ -91,14 +107,65 @@ const getRecordDetail = (r: MilitaryRecord, keys: string[]): string => {
   return '';
 };
 
+function ResultAttachments({ value }: { value: unknown }) {
+  const sources: string[] = [];
+  const visit = (item: unknown) => {
+    if (typeof item === 'string' && /^data:(image\/|application\/pdf)/.test(item)) sources.push(item);
+    else if (Array.isArray(item)) item.forEach(visit);
+    else if (item && typeof item === 'object') Object.values(item).forEach(visit);
+  };
+  visit(value);
+  return <div className="space-y-3">{Array.from(new Set(sources)).map((src, index) => src.startsWith('data:image/')
+    ? <img key={index} src={src} alt={`مرفق السجل ${index + 1}`} className="max-w-full mx-auto rounded-xl" />
+    : <iframe key={index} src={src} title={`ملف PDF ${index + 1}`} className="w-full h-[65vh] rounded-xl" />)}</div>;
+}
 export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
   records,
   isDarkMode = true,
   onOpenDetails,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const navigation = React.useContext(SearchRecordNavigation);
+  const [selectedResults, setSelectedResults] = useState<Set<any>>(new Set());
+  useEffect(() => { setSelectedResults(new Set()); }, [searchTerm]);
+  const selectResult = (record: any) => (
+    <label className="flex items-center gap-2 text-xs text-violet-300 mb-2 cursor-pointer">
+      <input type="checkbox" aria-label="تحديد السجل" checked={selectedResults.has(record)} onChange={() => setSelectedResults(previous => {
+        const next = new Set(previous);
+        if (next.has(record)) next.delete(record); else next.add(record);
+        return next;
+      })} className="accent-violet-500 w-4 h-4" /> تحديد
+    </label>
+  );
+  const exportSelected = () => {
+    if (!selectedResults.size) return;
+    const rows = Array.from(selectedResults).map(record => {
+      const row: Record<string, string | number | boolean> = {};
+      const flatten = (value: any, prefix = '') => {
+        Object.entries(value || {}).forEach(([key, item]) => {
+          const label = prefix ? `${prefix} / ${key}` : key;
+          if (typeof item === 'string' && item.startsWith('data:')) return;
+          if (item && typeof item === 'object') flatten(item, label);
+          else if (item !== null && item !== undefined) row[label] = item as string | number | boolean;
+        });
+      };
+      flatten(record);
+      return row;
+    });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'السجلات المحددة');
+    XLSX.writeFile(workbook, `نتائج_البحث_المحددة_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+  const openResultButton = (record: any, category: string, folderId?: string, source?: string) => (
+    <>
+    {selectResult(record)}
+    <button type="button" onClick={() => { setIsModalOpen(false); navigation.open({ record, category, folderId, source }); }} className="flex items-center gap-1 px-2 py-1 mb-2 rounded-md text-[10px] font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/25 hover:bg-cyan-500/20 cursor-pointer">
+      <ExternalLink className="w-3 h-3" /> فتح الملف الكامل
+    </button>
+    </>
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'main' | 'folders' | 'weapons' | 'vehicles' | 'comm' | 'casualties' | 'finance'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'main' | 'folders' | 'weapons' | 'vehicles' | 'comm' | 'casualties' | 'finance' | 'additional'>('all');
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -111,7 +178,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
 
   // Load all external system modules from storage
   const allFolderData = useMemo(() => {
-    const foldersMap = safeParseStorage<Record<string, any[]>>('folder_personnel_records_v1', {});
+    const foldersMap = safeParseStorage<Record<string, any[]>>('military_folder_personnel_records_v1', {});
     const flat: Array<{ folderId: string; folderLabel: string; record: any }> = [];
     Object.entries(foldersMap).forEach(([folderId, list]) => {
       if (Array.isArray(list)) {
@@ -134,8 +201,14 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
   const commRegiment = useMemo(() => safeParseStorage<any[]>('military_communications_regiment_v2', []), [isModalOpen]);
   const martyrs = useMemo(() => safeParseStorage<any[]>('military_martyr_records_v1', []), [isModalOpen]);
   const wounded = useMemo(() => safeParseStorage<any[]>('military_wounded_records_v1', []), [isModalOpen]);
-  const finance = useMemo(() => safeParseStorage<any[]>('financial_records_v1', []), [isModalOpen]);
+  const finance = useMemo(() => safeParseStorage<any[]>('military_financial_records_v1', []), [isModalOpen]);
 
+  const additionalRecords = useMemo(() => [
+    ...safeParseStorage<any[]>('military_regiment_documents_v1', []).map(record => ({ source: `كتب الملفات — ${FOLDER_NAMES[record.folderId] || record.folderId}`, record })),
+    ...safeParseStorage<any[]>('military_absence_records_v1', []).map(record => ({ source: 'الغيابات', record })),
+    ...safeParseStorage<any[]>('military_presence_records_v1', []).map(record => ({ source: 'الحضور', record })),
+    ...safeParseStorage<any[]>('military_general_financial_ledger_v1', []).map(record => ({ source: 'السجل المالي العام', record })),
+  ], [isModalOpen]);
   // Execute global search matching
   const searchResults = useMemo(() => {
     const query = searchTerm.trim();
@@ -149,7 +222,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
         vehicleMatches: [],
         commMatches: [],
         casualtyMatches: [],
-        financeMatches: [],
+        financeMatches: [], additionalMatches: [],
       };
     }
 
@@ -174,43 +247,43 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
       const compactId = cleanDigitsAndLetters(
         `${r.military_id} ${r.phone} ${getRecordDetail(r, ['رقم البطاقة موحدة', 'رقم البطاقة الوطنية'])} ${getRecordDetail(r, ['رقم الكي كارد', 'الكي كارد'])}`
       );
-      return matchesAllTokens(combined, compactId);
+      return matchesAllTokens(searchableText(r), cleanDigitsAndLetters(searchableText(r)));
     });
 
     // 2. Folder Records (الملفات والأضابير)
     const folderMatches = allFolderData.filter(({ record }) => {
       const combined = `${record.militaryNumber} ${record.fullName} ${record.position} ${record.unitOrCompany} ${record.motherName} ${record.nationalCardNumber} ${record.qiCardNumber} ${record.militaryCardDates} ${record.weaponNumber} ${record.weaponType} ${record.administrativeNote12}`;
       const compactId = cleanDigitsAndLetters(`${record.militaryNumber} ${record.nationalCardNumber} ${record.qiCardNumber}`);
-      return matchesAllTokens(combined, compactId);
+      return matchesAllTokens(searchableText(record), cleanDigitsAndLetters(searchableText(record)));
     });
 
     // 3. Weapons (التسليحات)
     const weaponMatches = [
       ...fighters.filter((f) => {
         const combined = `${f.sequence} ${f.fighterName} ${f.weaponNumber} ${f.weaponType} ${f.magazinesCount} ${f.ammunition} ${f.notes}`;
-        return matchesAllTokens(combined, cleanDigitsAndLetters(f.weaponNumber));
+        return matchesAllTokens(searchableText(f), cleanDigitsAndLetters(searchableText(f)));
       }).map((f) => ({ ...f, _source: 'سجل المقاتلين والأسلحة' })),
       ...faultyWeapons.filter((fw) => {
         const combined = `${fw.sequence} ${fw.weaponNumber} ${fw.weaponType} ${fw.faultType} ${fw.notes}`;
-        return matchesAllTokens(combined, cleanDigitsAndLetters(fw.weaponNumber));
+        return matchesAllTokens(searchableText(fw), cleanDigitsAndLetters(searchableText(fw)));
       }).map((fw) => ({ ...fw, _source: 'الأسلحة العاطلة والشاغل' })),
     ];
 
     // 4. Vehicles (الآليات)
     const vehicleMatches = vehicles.filter((v) => {
       const combined = `${v.driverName} ${v.vehicleNumber} ${v.chassisNumber} ${v.vehicleType} ${v.vehicleColor} ${v.vehicleOwnership} ${v.notes}`;
-      return matchesAllTokens(combined, cleanDigitsAndLetters(`${v.vehicleNumber} ${v.chassisNumber}`));
+      return matchesAllTokens(searchableText(v), cleanDigitsAndLetters(searchableText(v)));
     });
 
     // 5. Communications (الاتصالات)
     const commMatches = [
       ...commGeneral.filter((cg) => {
         const combined = `${cg.officerName} ${cg.deputyOfficerName} ${cg.notes} ${cg.sequence}`;
-        return matchesAllTokens(combined);
+        return matchesAllTokens(searchableText(cg), cleanDigitsAndLetters(searchableText(cg)));
       }).map((cg) => ({ ...cg, _source: 'الاتصالات العامة' })),
       ...commRegiment.filter((cr) => {
         const combined = `${cr.fullName} ${cr.position} ${cr.regimentOrDepartment} ${cr.phoneNumber} ${cr.deviceType} ${cr.deviceStatus} ${cr.notes}`;
-        return matchesAllTokens(combined, cleanDigitsAndLetters(cr.phoneNumber));
+        return matchesAllTokens(searchableText(cr), cleanDigitsAndLetters(searchableText(cr)));
       }).map((cr) => ({ ...cr, _source: 'قسم اتصالات الفوج' })),
     ];
 
@@ -218,21 +291,23 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
     const casualtyMatches = [
       ...martyrs.filter((m) => {
         const combined = `${m.name} ${m.militaryId} ${m.location} ${m.notes}`;
-        return matchesAllTokens(combined, cleanDigitsAndLetters(m.militaryId));
+        return matchesAllTokens(searchableText(m), cleanDigitsAndLetters(searchableText(m)));
       }).map((m) => ({ ...m, _status: 'شهيد' })),
       ...wounded.filter((w) => {
         const combined = `${w.name} ${w.militaryId} ${w.injuryType} ${w.hospital} ${w.notes}`;
-        return matchesAllTokens(combined, cleanDigitsAndLetters(w.militaryId));
+        return matchesAllTokens(searchableText(w), cleanDigitsAndLetters(searchableText(w)));
       }).map((w) => ({ ...w, _status: 'جريح' })),
     ];
 
     // 7. Finance (المالية)
     const financeMatches = finance.filter((fn) => {
       const combined = `${fn.name} ${fn.military_id} ${fn.rank} ${fn.notes}`;
-      return matchesAllTokens(combined, cleanDigitsAndLetters(fn.military_id));
+      return matchesAllTokens(searchableText(fn), cleanDigitsAndLetters(searchableText(fn)));
     });
 
-    const totalMatches =
+    const additionalMatches = additionalRecords.filter(({ source, record }) =>
+      matchesAllTokens(`${source} ${searchableText(record)}`, cleanDigitsAndLetters(searchableText(record))));
+    const totalMatches = additionalMatches.length +
       mainMatches.length +
       folderMatches.length +
       weaponMatches.length +
@@ -250,12 +325,12 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
       vehicleMatches,
       commMatches,
       casualtyMatches,
-      financeMatches,
+      financeMatches, additionalMatches,
     };
   }, [
     searchTerm,
     records,
-    allFolderData,
+    allFolderData, additionalRecords,
     fighters,
     faultyWeapons,
     vehicles,
@@ -271,6 +346,9 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
     const wb = XLSX.utils.book_new();
     const querySafe = searchTerm.trim() || 'شامل';
 
+    if (searchResults.additionalMatches.length) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.additionalMatches.map(({source, record}) => ({ القسم: source, الاسم: record.title || record.fullName || record.name || '', البيانات: searchableText(record) }))), 'كتب_غياب_حضور_مالية');
+    }
     // Summary Sheet
     const summaryRows = [
       { البيان: 'المصطلح المبحوث عنه', القيمة: querySafe },
@@ -508,6 +586,9 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
 
                 {/* Action Buttons: Download PDF and Download Excel */}
                 <div className="flex flex-wrap items-center gap-2.5 print:hidden relative z-50 shrink-0">
+                  <button type="button" onClick={exportSelected} disabled={!selectedResults.size} className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer">
+                    <Download className="w-4 h-4" /> تحميل المحدد ({selectedResults.size})
+                  </button>
                   {/* زر تحميل بي دي اف */}
                   <button
                     type="button"
@@ -652,7 +733,9 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                 <Wallet className="w-3.5 h-3.5" />
                 <span>المالية ({searchResults.financeMatches.length})</span>
               </button>
-            </div>
+                          <button onClick={() => setActiveTab('additional')} className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap ${activeTab === 'additional' ? 'bg-emerald-600 text-white' : 'text-neutral-300 hover:bg-neutral-800'}`}>
+                كتب الملفات والغيابات والحضور ({searchResults.additionalMatches.length})
+              </button></div>
 
             {/* Dossier Content Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -677,6 +760,19 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                 </div>
               ) : (
                 <>
+                  {(activeTab === 'all' || activeTab === 'additional') && searchResults.additionalMatches.length > 0 && (
+                    <section className="space-y-3">
+                      <h3 className="text-emerald-300 font-bold">كتب الملفات والغيابات والحضور والسجل المالي ({searchResults.additionalMatches.length})</h3>
+                      {searchResults.additionalMatches.map(({ source, record }, index) => (
+                        <div key={`${source}-${record.id || index}`} className="rounded-xl border border-emerald-500/25 bg-neutral-900 p-4 space-y-2">
+                          {openResultButton(record, 'additional', record.folderId, source)}
+                          <p className="text-emerald-300 text-xs font-bold">{source}</p>
+                          <p className="text-white font-bold">{record.title || record.fullName || record.name || record.beneficiaryName || 'سجل'}</p>
+                          <p className="text-neutral-300 text-sm break-words">{searchableText(record)}</p>
+                        </div>
+                      ))}
+                    </section>
+                  )}
                   {/* 1. قسم الرئيسية (Main Personnel Records) */}
                   {(activeTab === 'all' || activeTab === 'main') && searchResults.mainMatches.length > 0 && (
                     <section className="space-y-3">
@@ -694,6 +790,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {selectResult(rec)}
                             <div className="flex items-start justify-between gap-2 border-b pb-2 border-white/5">
                               <div>
                                 <span className="text-xs font-mono text-emerald-400 block font-bold">
@@ -763,7 +860,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                         <span>سجلات الأضابير والملفات ({searchResults.folderMatches.length})</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {searchResults.folderMatches.map(({ folderLabel, record }, idx) => (
+                        {searchResults.folderMatches.map(({ folderId, folderLabel, record }, idx) => (
                           <div
                             key={record.id || idx}
                             className="rounded-xl border p-4 space-y-2.5"
@@ -772,6 +869,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {openResultButton(record, 'folders', folderId)}
                             <div className="flex items-center justify-between border-b pb-2 border-white/5">
                               <div>
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
@@ -838,6 +936,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {openResultButton(w, 'weapons')}
                             <div className="flex items-center justify-between border-b pb-1.5 border-white/5">
                               <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
                                 {w._source}
@@ -900,6 +999,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {openResultButton(v, 'vehicles')}
                             <div className="flex items-center justify-between border-b pb-1.5 border-white/5">
                               <span className="font-bold text-xs text-white">{v.vehicleType}</span>
                               <span className="font-mono text-xs font-bold text-blue-400">
@@ -946,6 +1046,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {openResultButton(c, 'communications')}
                             <div className="flex items-center justify-between border-b pb-1.5 border-white/5">
                               <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
                                 {c._source}
@@ -1005,6 +1106,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {openResultButton(cs, 'casualties')}
                             <div className="flex items-center justify-between border-b pb-1.5 border-white/5">
                               <span className="font-bold text-xs text-white">{cs.name}</span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300">
@@ -1039,6 +1141,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                               borderColor: isDarkMode ? '#383838' : '#e2e8f0',
                             }}
                           >
+                            {openResultButton(fn, 'finance')}
                             <span className="font-bold text-white block">{fn.name}</span>
                             <p className="text-neutral-400">الرقم العسكري: {fn.military_id}</p>
                             <p className="text-emerald-400 font-bold">المستحقات: {fn.amount}</p>

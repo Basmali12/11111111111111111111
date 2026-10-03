@@ -10,8 +10,11 @@ export const PdfDocumentPreview: React.FC<{ dataUrl: string }> = ({ dataUrl }) =
     let cancelled = false;
     const target = container.current;
     target?.replaceChildren(); setError(''); setLoading(true);
-    const data = Uint8Array.from(atob(dataUrl.split(',')[1]), char => char.charCodeAt(0));
-    const task = getDocument({ data });
+    const base = import.meta.env.BASE_URL + 'pdfjs/';
+    const task = getDocument({
+      ...(dataUrl.startsWith('data:') ? {data:Uint8Array.from(atob(dataUrl.split(',')[1]),char=>char.charCodeAt(0))} : {url:dataUrl}),
+      standardFontDataUrl: base + 'standard_fonts/', cMapUrl: base + 'cmaps/', cMapPacked:true, wasmUrl:base+'wasm/',
+    });
     void (async () => {
       try {
         const pdf = await task.promise;

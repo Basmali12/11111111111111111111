@@ -1,3 +1,6 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { PdfDocumentPreview } from './PdfDocumentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
@@ -52,6 +55,8 @@ interface FolderPersonnelRecord {
   document102?: string;
   document102FileName?: string;
   document102DataUrl?: string;
+  supportingPdfName?: string;
+  supportingPdfDataUrl?: string;
   coursesCount?: string;
   administrativeOrderImages?: AdministrativeOrderImage[];
   militaryCardDates?: string;
@@ -80,6 +85,8 @@ interface RecordFormState {
   document102?: string;
   document102FileName?: string;
   document102DataUrl?: string;
+  supportingPdfName?: string;
+  supportingPdfDataUrl?: string;
   coursesCount?: string;
   administrativeOrderImages?: AdministrativeOrderImage[];
   militaryCardDates?: string;
@@ -114,6 +121,8 @@ const EMPTY_FORM: RecordFormState = {
   document102: '',
   document102FileName: '',
   document102DataUrl: '',
+  supportingPdfName: '',
+  supportingPdfDataUrl: '',
   coursesCount: '',
   administrativeOrderImages: [],
   militaryCardDates: '',
@@ -149,17 +158,37 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
   onBack,
   onShowToast,
 }) => {
+  const searchTarget = useSearchRecordTarget();
   const showAdministrativeArchive = folderId === 'file_security';
   const isSecurityFolder = folderId === 'file_security';
   const isTrainingFolder = folderId === 'file_alamal';
   const [records, setRecords] = useState<FolderPersonnelRecord[]>(() => readFolderRecords(folderId));
   const selection = useExcelSelection(records, (record) => record.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.category === 'folders' ? searchTarget.record.fullName || '' : '');
   const [showForm, setShowForm] = useState(false);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const list = stored[folderId] || [];
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, [folderId]: next }));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<RecordFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [viewingAllOrdersRecord, setViewingAllOrdersRecord] = useState<FolderPersonnelRecord | null>(null);
+  const [supportingPdfPreview, setSupportingPdfPreview] = useState<{ name: string; dataUrl: string; recordId?: string } | null>(null);
+  const uploadSupportingPdf = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) { onShowToast('warning', 'نوع الملف غير مدعوم', 'اختر ملف PDF للمستمسكات.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setForm(current => ({ ...current, supportingPdfName: file.name, supportingPdfDataUrl: String(reader.result || '') }));
+    reader.onerror = () => onShowToast('warning', 'تعذر قراءة الملف', 'حاول رفع ملف PDF مرة أخرى.');
+    reader.readAsDataURL(file);
+  };
   const formRef = useRef<HTMLFormElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -306,6 +335,8 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
       document102: record.document102 || '',
       document102FileName: record.document102FileName || '',
       document102DataUrl: record.document102DataUrl || '',
+      supportingPdfName: record.supportingPdfName || '',
+      supportingPdfDataUrl: record.supportingPdfDataUrl || '',
       coursesCount: record.coursesCount || '',
       administrativeOrderImages: record.administrativeOrderImages || [],
       militaryCardDates: record.militaryCardDates || [record.issueDate, record.expiryDate].filter(Boolean).join(' - ') || record.administrativeNote12 || '',
@@ -316,6 +347,13 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
     });
     setShowForm(true);
   };
+
+  useEffect(() => {
+    if (searchTarget?.category === 'folders' && searchTarget.folderId === folderId) {
+      const record = records.find(item => item.id === searchTarget.record.id);
+      if (record) openEditForm(record);
+    }
+  }, [searchTarget, folderId]);
 
   const deleteRecord = () => {
     const record = records.find((item) => item.id === pendingDeleteId);
@@ -369,6 +407,8 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
             document102: form.document102?.trim() || '',
             document102FileName: form.document102FileName?.trim() || '',
             document102DataUrl: form.document102DataUrl || '',
+            supportingPdfName: form.supportingPdfName || '',
+            supportingPdfDataUrl: form.supportingPdfDataUrl || '',
           }
         : {}),
       ...(isTrainingFolder || form.coursesCount || (form.administrativeOrderImages && form.administrativeOrderImages.length > 0)
@@ -407,6 +447,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
       ...(isSecurityFolder ? {
         'نوع السلاح': record.weaponType || '',
         'رقم السلاح': record.weaponNumber || '',
+        ...(isSecurityFolder ? { 'المستمسكات': record.supportingPdfName || '' } : {}),
         'مستند 102': record.document102 || record.document102FileName || '',
       } : {}),
       ...(isTrainingFolder ? {
@@ -441,7 +482,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
       'رقم بطاقة كي كارد',
       'رقم البطاقة الوطنية',
       'تاريخ الاصدار ونفاذ الهوية العسكرية',
-      ...(isSecurityFolder ? ['الهوية العسكرية'] : []),
+      ...(isSecurityFolder ? ['المستمسكات', 'الهوية العسكرية'] : []),
       ...(isTrainingFolder ? ['الأمر الإداري'] : []),
       'مرجع الأرشفة',
     ];
@@ -485,6 +526,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
             dataUrl: record.document102DataUrl,
           });
         }
+        if (record.supportingPdfDataUrl) items.push({ recordKey: String(index + 1), name: `المستمسكات_${record.supportingPdfName || 'ملف.pdf'}`, type: 'application/pdf', dataUrl: record.supportingPdfDataUrl });
         return items;
       });
       if (secDocs.length > 0) {
@@ -516,6 +558,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
         }));
         const secDocs = securityAttachments.get(rowKey) || [];
         const milCardDoc = secDocs.find((d) => d.name.includes('الهوية') || d.name.includes('military'));
+        const supportingPdf = secDocs.find(d => d.name.startsWith('المستمسكات_'));
         const doc102Doc = secDocs.find((d) => d.name.includes('102') || d.name.includes('مستند'));
 
         return {
@@ -536,6 +579,8 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
           document102: String(row['مستند 102'] ?? row['مستند102'] ?? row['102'] ?? '').trim(),
           document102FileName: doc102Doc?.name || '',
           document102DataUrl: doc102Doc?.dataUrl || '',
+          supportingPdfName: supportingPdf?.name.replace(/^المستمسكات_/, '') || String(row['المستمسكات'] || ''),
+          supportingPdfDataUrl: supportingPdf?.dataUrl || '',
           coursesCount: String(row['عدد الدورات'] ?? row['الدورات'] ?? row['دورات'] ?? '').trim(),
           administrativeOrderImages: importedOrders.length > 0 ? importedOrders : undefined,
           militaryCardDates: String(
@@ -857,9 +902,9 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                         aria-label="إرفاق ملف مستند 102"
                       />
                     </label>
-                    {form.document102DataUrl && form.document102DataUrl.startsWith('data:image') && (
+                    {form.document102DataUrl && (
                       <ImagePreviewButton
-                        src={form.document102DataUrl}
+                        src={form.document102DataUrl} onDelete={() => removeAttachment(form.document102DataUrl!, undefined)}
                         name={form.document102FileName || `مستند 102 - ${form.fullName || 'المنتسب'}`}
                         className="p-1 rounded-lg text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
                       />
@@ -869,7 +914,13 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
               </label>
             )}
 
-            {/* صورة الهوية العسكرية - في الأخير وبقياس موحد ومصغر */}
+            {isSecurityFolder && <div className="flex flex-col gap-2 rounded-xl border border-emerald-500/20 p-3">
+              <span className="text-xs font-bold">المستمسكات</span>
+              <input type="file" accept="application/pdf,.pdf" aria-label="رفع PDF المستمسكات" onChange={uploadSupportingPdf} className="text-xs max-w-full" />
+              <span className="text-xs text-neutral-400 break-all">{form.supportingPdfName || 'لم يتم رفع مستمسكات'}</span>
+              {form.supportingPdfDataUrl && <button type="button" onClick={() => setSupportingPdfPreview({ name: form.supportingPdfName || 'المستمسكات', dataUrl: form.supportingPdfDataUrl! })} className="self-start px-3 py-2 rounded-lg bg-sky-600 text-white text-xs font-bold">عرض المستمسكات</button>}
+            </div>}
+            {/* صورة الهوية العسكرية */}
             {isSecurityFolder && (
               <label className="text-[11px] font-bold text-neutral-300 flex flex-col justify-between">
                 <span>صورة الهوية العسكرية</span>
@@ -881,7 +932,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                     {form.militaryCardImageDataUrl ? (
                       <>
                         <ImagePreviewButton
-                          src={form.militaryCardImageDataUrl}
+                          src={form.militaryCardImageDataUrl} onDelete={() => removeAttachment(form.militaryCardImageDataUrl!, undefined)}
                           name={form.militaryCardImageName || `الهوية العسكرية - ${form.fullName || 'المنتسب'}`}
                           className="p-0 border-0 bg-transparent cursor-pointer shrink-0"
                         >
@@ -1019,8 +1070,8 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
             <thead>
               <tr style={{ backgroundColor: isDarkMode ? '#2b2b2b' : '#f1f5f9' }}>
                 {(selection.enabled
-                  ? ['تحديد', 'ت', 'إجراءات', 'الرقم العسكري', 'الاسم الرباعي واللقب', 'المنصب', 'الفوج أو السرية', ...(isSecurityFolder ? ['نوع السلاح', 'رقم السلاح', 'مستند 102'] : []), ...(isTrainingFolder ? ['عدد الدورات'] : []), 'اسم الأم', 'التولد', 'رقم الكي كارد الجديد', 'رقم البطاقة الموحدة', 'تاريخ الاصدار ونفاذ الهوية العسكرية', ...(isSecurityFolder ? ['الهوية العسكرية'] : []), ...(isTrainingFolder ? ['الأمر الإداري'] : [])]
-                  : ['ت', 'إجراءات', 'الرقم العسكري', 'الاسم الرباعي واللقب', 'المنصب', 'الفوج أو السرية', ...(isSecurityFolder ? ['نوع السلاح', 'رقم السلاح', 'مستند 102'] : []), ...(isTrainingFolder ? ['عدد الدورات'] : []), 'اسم الأم', 'التولد', 'رقم الكي كارد الجديد', 'رقم البطاقة الموحدة', 'تاريخ الاصدار ونفاذ الهوية العسكرية', ...(isSecurityFolder ? ['الهوية العسكرية'] : []), ...(isTrainingFolder ? ['الأمر الإداري'] : [])]
+                  ? ['تحديد', 'ت', 'إجراءات', 'الرقم العسكري', 'الاسم الرباعي واللقب', 'المنصب', 'الفوج أو السرية', ...(isSecurityFolder ? ['نوع السلاح', 'رقم السلاح', 'مستند 102'] : []), ...(isTrainingFolder ? ['عدد الدورات'] : []), 'اسم الأم', 'التولد', 'رقم الكي كارد الجديد', 'رقم البطاقة الموحدة', 'تاريخ الاصدار ونفاذ الهوية العسكرية', ...(isSecurityFolder ? ['المستمسكات', 'الهوية العسكرية'] : []), ...(isTrainingFolder ? ['الأمر الإداري'] : [])]
+                  : ['ت', 'إجراءات', 'الرقم العسكري', 'الاسم الرباعي واللقب', 'المنصب', 'الفوج أو السرية', ...(isSecurityFolder ? ['نوع السلاح', 'رقم السلاح', 'مستند 102'] : []), ...(isTrainingFolder ? ['عدد الدورات'] : []), 'اسم الأم', 'التولد', 'رقم الكي كارد الجديد', 'رقم البطاقة الموحدة', 'تاريخ الاصدار ونفاذ الهوية العسكرية', ...(isSecurityFolder ? ['المستمسكات', 'الهوية العسكرية'] : []), ...(isTrainingFolder ? ['الأمر الإداري'] : [])]
                 ).map((heading) => (
                   <th
                     key={heading}
@@ -1069,9 +1120,9 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                           <span className="text-[11px]" style={{ color: isDarkMode ? '#e5e7eb' : '#334155' }}>
                             {record.document102 || record.document102FileName || '—'}
                           </span>
-                          {record.document102DataUrl && record.document102DataUrl.startsWith('data:image') && (
+                          {record.document102DataUrl && (
                             <ImagePreviewButton
-                              src={record.document102DataUrl}
+                              src={record.document102DataUrl} onDelete={() => removeAttachment(record.document102DataUrl!, record.id)}
                               name={`مستند 102 - ${record.fullName}`}
                               className="px-1.5 py-0.5 rounded-md border border-sky-500/30 text-sky-400 text-[10px] font-bold flex items-center gap-1 cursor-pointer hover:bg-sky-500/10"
                             />
@@ -1110,12 +1161,15 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                     {record.militaryCardDates || [record.issueDate, record.expiryDate].filter(Boolean).join(' - ') || record.administrativeNote12 || '—'}
                   </td>
 
+                  {isSecurityFolder && <td className="px-3 py-2 border-b border-white/10 text-xs">
+                    {record.supportingPdfDataUrl ? <button type="button" onClick={event => { event.stopPropagation(); setSupportingPdfPreview({ name: record.supportingPdfName || 'المستمسكات', dataUrl: record.supportingPdfDataUrl!, recordId: record.id }); }} className="px-3 py-1.5 rounded-lg border border-sky-500/40 text-sky-400" aria-label={`عرض المستمسكات - ${record.fullName}`}>عرض</button> : '—'}
+                  </td>}
                   {isSecurityFolder && (
                     <td className="px-3 py-2 border-b whitespace-nowrap text-center" style={{ borderColor: isDarkMode ? '#343434' : '#e2e8f0' }}>
                       {record.militaryCardImageDataUrl ? (
                         <div className="flex items-center justify-center gap-1.5">
                           <ImagePreviewButton
-                            src={record.militaryCardImageDataUrl}
+                            src={record.militaryCardImageDataUrl} onDelete={() => removeAttachment(record.militaryCardImageDataUrl!, record.id)}
                             name={`الهوية العسكرية - ${record.fullName}`}
                             className="p-0 border-0 bg-transparent cursor-pointer"
                           >
@@ -1126,7 +1180,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                             />
                           </ImagePreviewButton>
                           <ImagePreviewButton
-                            src={record.militaryCardImageDataUrl}
+                            src={record.militaryCardImageDataUrl} onDelete={() => removeAttachment(record.militaryCardImageDataUrl!, record.id)}
                             name={`الهوية العسكرية - ${record.fullName}`}
                             className="px-1.5 py-0.5 rounded-md border border-emerald-500/40 text-emerald-400 text-[10px] font-bold flex items-center gap-0.5 cursor-pointer hover:bg-emerald-500/10"
                           />
@@ -1152,7 +1206,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                           {record.administrativeOrderImages!.slice(0, 2).map((img, idx) => (
                             <ImagePreviewButton
                               key={img.id || idx}
-                              src={img.dataUrl}
+                              src={img.dataUrl} onDelete={() => removeAttachment(img.dataUrl, record.id)}
                               name={img.name || `أمر إداري ${idx + 1} - ${record.fullName}`}
                               className="p-0 border-0 bg-transparent cursor-pointer"
                             >
@@ -1266,7 +1320,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <ImagePreviewButton
-                        src={img.dataUrl}
+                        src={img.dataUrl} onDelete={() => { removeAttachment(img.dataUrl, viewingAllOrdersRecord.id === 'temp_view' ? undefined : viewingAllOrdersRecord.id); setViewingAllOrdersRecord(current => current ? withoutAttachment(current, img.dataUrl) : null); }}
                         name={img.name || `أمر إداري ${idx + 1} - ${viewingAllOrdersRecord.fullName}`}
                         className="px-2 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                       />
@@ -1281,7 +1335,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
                   </div>
                   <div className="w-full h-48 rounded-lg overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center">
                     <ImagePreviewButton
-                      src={img.dataUrl}
+                      src={img.dataUrl} onDelete={() => { removeAttachment(img.dataUrl, viewingAllOrdersRecord.id === 'temp_view' ? undefined : viewingAllOrdersRecord.id); setViewingAllOrdersRecord(current => current ? withoutAttachment(current, img.dataUrl) : null); }}
                       name={img.name || `أمر إداري ${idx + 1} - ${viewingAllOrdersRecord.fullName}`}
                       className="w-full h-full p-0 border-0 bg-transparent flex items-center justify-center cursor-pointer"
                     >
@@ -1299,6 +1353,8 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
         </div>,
         document.body,
       )}
+      {supportingPdfPreview && <AttachmentPreview src={supportingPdfPreview.dataUrl} name={supportingPdfPreview.name} isPdf onClose={() => setSupportingPdfPreview(null)} onDelete={() => removeAttachment(supportingPdfPreview.dataUrl, supportingPdfPreview.recordId)} />}
+
     </div>
   );
 };

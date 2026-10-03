@@ -1,4 +1,9 @@
-import React, { useState, useMemo, useRef } from 'react';
+import { startAutomaticBackup, AUTO_BACKUP_FILENAME } from '../automaticBackup';
+import { MAIN_BACKUP_KEY, createSystemBackup, buildSystemWorkbook, parseSystemWorkbook, restoreSystemBackup, systemBackupFilename } from '../systemBackup';
+import { AttachmentPreview } from './AttachmentPreview';
+import { SearchRecordNavigation, type SearchRecordTarget } from './SearchRecordNavigation';
+import { createPortal } from 'react-dom';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Folder,
@@ -81,6 +86,7 @@ import type { CamoIntensity, CamoPatternType } from './MilitaryCamoBackground';
 import {
   saveDatabaseDirectlyToDisk,
   getActiveDirectoryHandle,
+  reconnectBackupDirectory,
   triggerExcelDownload,
 } from '../fileSystemStorage';
 import { usePwaInstall } from '../usePwaInstall';
@@ -422,7 +428,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
 
   // Database in-memory state (Pandas DataFrame simulation)
   // Simulates the silent auto-load on startup from default_save_path
-  const [records, setRecords] = useState<MilitaryRecord[]>(INITIAL_MILITARY_RECORDS);
+  const [records, setRecords] = useState<MilitaryRecord[]>(() => { try { const saved = localStorage.getItem(MAIN_BACKUP_KEY); return saved ? JSON.parse(saved) : INITIAL_MILITARY_RECORDS; } catch { return INITIAL_MILITARY_RECORDS; } });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedRecordId, setSelectedRecordId] = useState<number | null>(null);
 
@@ -436,6 +442,38 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   const [pdfRecord, setPdfRecord] = useState<MilitaryRecord | null>(null);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
   const excelFileInputRef = useRef<HTMLInputElement>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [automaticBackupStatus, setAutomaticBackupStatus] = useState('اختر مجلداً فعلياً لتفعيل تحديث النسخة على القرص.');
+  const backupRecordsRef = useRef(records);
+  backupRecordsRef.current = records;
+  useEffect(() => startAutomaticBackup(() => backupRecordsRef.current, setAutomaticBackupStatus), [startAutomaticBackup, config.default_save_path]);
+  useEffect(() => {
+    try { localStorage.setItem(MAIN_BACKUP_KEY, JSON.stringify(records)); }
+    catch { onShowToast('warning', 'الحفظ المحلي', 'تعذر حفظ الرئيسية محلياً. صدّر نسخة شاملة لحماية البيانات.'); }
+  }, [records]);
+  const exportCompleteBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const backup = await createSystemBackup(records);
+      XLSX.writeFile(await buildSystemWorkbook(backup), systemBackupFilename(backup.createdAt), {compression:true});
+      onShowToast('success', 'النسخة الشاملة', 'تم تجهيز جميع الأقسام والصور وملفات PDF داخل ملف Excel مؤرخ.');
+    } catch(error) { onShowToast('warning', 'تعذر التصدير', error instanceof Error ? error.message : 'تعذر إنشاء النسخة.'); }
+    finally { setBackupBusy(false); }
+  };
+  const importCompleteBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file) return;
+    setBackupBusy(true);
+    try {
+      const backup = await parseSystemWorkbook(XLSX.read(await file.arrayBuffer(), {type:'array'}));
+      if (!window.confirm('استرجاع نسخة بتاريخ ' + new Date(backup.createdAt).toLocaleString('ar-IQ') + '؟\nتشمل جميع الأقسام و' + backup.records.length + ' سجل رئيسي و' + backup.files.length + ' مرفق منتسب، إضافة لمرفقات الأقسام.\nسيتم استبدال السجلات والمرفقات الحالية ببيانات النسخة.')) return;
+      await restoreSystemBackup(backup);
+      setRecords(backup.records);
+      setFolderDocuments(JSON.parse(backup.storage.military_regiment_documents_v1 || '[]'));
+      onShowToast('success', 'تم الاسترجاع', 'استُرجعت جميع الأقسام والمرفقات محلياً.');
+    } catch(error) { onShowToast('warning', 'تعذر الاسترجاع', error instanceof Error ? error.message : 'تعذر استرجاع النسخة.'); }
+    finally { setBackupBusy(false); }
+  };
   const { isInstallable, promptInstall } = usePwaInstall();
 
   // Phase 6: الملفات العسكرية الـ 13 الخاصة بالفوج والسرايا والشعب
@@ -451,7 +489,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   const [quickIndexFilter, setQuickIndexFilter] = useState<string | null>(null);
 
   const filteredRegimentFiles = useMemo(() => {
-    const files = REGIMENT_MILITARY_FILES.filter((file) => file.id !== 'file_vehicles');
+    const files = REGIMENT_MILITARY_FILES.filter((file) => !['file_vehicles', 'file_security'].includes(file.id));
     if (!fileSearchQuery.trim()) return files;
     const q = normalizeMilitarySearchText(fileSearchQuery);
     const qDigits = convertArabicIndicDigits(fileSearchQuery.trim());
@@ -684,8 +722,8 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   };
 
   // حذف مرفق من ملف
-  const handleDeleteAttachment = (docId: string, attId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteAttachment = (docId: string, attId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const updated = folderDocuments.map((doc) =>
       doc.id === docId ? { ...doc, attachments: doc.attachments.filter((a) => a.id !== attId) } : doc
     );
@@ -1125,7 +1163,36 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     setShowMainDeleteConfirm(true);
   };
 
+  useEffect(() => {
+    setPreviewImage(null); setPreviewPdf(null);
+    setEditingAtt(null); setEditingDoc(null);
+    setIsAddDocModalOpen(false); setIsDetailsModalOpen(false);
+    setIsExcelModalOpen(false); setIsStorageModalOpen(false);
+    setShowMainDeleteConfirm(false);
+  }, [activeView]);
+  useEffect(() => {
+    if (!previewImage && !previewPdf) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreviewImage(null); setPreviewPdf(null); } };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [previewImage, previewPdf]);
+  const [searchTarget, setSearchTarget] = useState<SearchRecordTarget | null>(null);
+  useEffect(() => {
+    if (searchTarget?.category === 'additional' && searchTarget.source?.startsWith('كتب الملفات') && activeView === 'blank') setEditingDoc(searchTarget.record);
+  }, [activeView, searchTarget]);
+  const openSearchRecord = (target: SearchRecordTarget) => {
+    setSearchTarget(target);
+    if (target.category === 'folders' || (target.category === 'additional' && target.source?.startsWith('كتب الملفات'))) {
+      setOpenedFileId(target.folderId || target.record.folderId);
+      setActiveView((target.folderId || target.record.folderId) === 'file_security' ? 'security' : 'blank');
+
+    } else {
+      const view = target.category === 'additional' ? (target.source === 'السجل المالي العام' ? 'finance' : 'attendance') : target.category;
+      setActiveView(view as SimulatorView);
+    }
+  };
   return (
+    <SearchRecordNavigation.Provider value={{ target: searchTarget, open: openSearchRecord }}>
     <div className="flex flex-col gap-4">
       {/* The Simulated Desktop Window Frame */}
       <div
@@ -1473,6 +1540,17 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
               <VehicleRecords isDarkMode={isDarkMode} onShowToast={onShowToast} onBack={() => setActiveView('home')} />
             )}
 
+            {activeView === 'security' && (
+              <FolderPersonnelRecords
+                folderId="file_security"
+                folderName="الأمن"
+                folderLabel="شعبة الأمن"
+                isDarkMode={isDarkMode}
+                onBack={() => setActiveView('home')}
+                onShowToast={onShowToast}
+              />
+            )}
+
             {activeView === 'attendance' && (
               <AttendanceSection isDarkMode={isDarkMode} onShowToast={onShowToast} onBack={() => setActiveView('home')} />
             )}
@@ -1681,88 +1759,6 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                   </div>
                 </div>
 
-                {/* CARD: إدارة واستعراض السجلات (زر السجلات الفعال المنقول للإعدادات) */}
-                <div
-                  className="rounded-2xl p-5 border transition-colors text-right"
-                  style={{
-                    backgroundColor: isDarkMode ? '#272727' : '#f9f9fa',
-                    borderColor: isDarkMode ? '#383838' : '#e8e8e8',
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      قاعدة البيانات: {records.length} سجل متوفر
-                    </span>
-                    <h3
-                      className="font-bold text-base flex items-center gap-2"
-                      style={{ color: isDarkMode ? '#ffffff' : '#1a1a1a' }}
-                    >
-                      <Database className="w-5 h-5 text-emerald-400" />
-                      <span>إدارة واستعراض السجلات (قاعدة بيانات المنتسبين)</span>
-                    </h3>
-                  </div>
-
-                  <p
-                    className="text-xs mb-4 leading-relaxed"
-                    style={{ color: isDarkMode ? '#a0a0a0' : '#666666' }}
-                  >
-                    يمكنك الوصول المباشر لكافة سجلات المنتسبين وإدارتها أو إضافة منتسب جديد أو تنزيل ملف قاعدة البيانات:
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {/* زر السجلات الفعال: ينقل المستخدم فوراً لجدول السجلات */}
-                    <button
-                      onClick={() => {
-                        setActiveView('home');
-                        onShowToast('info', 'جدول السجلات', `تم الانتقال لعرض جدول المنتسبين (${records.length} سجل).`);
-                      }}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white transition-all hover:brightness-110 shadow-sm cursor-pointer"
-                      style={{ backgroundColor: currentTheme.activeBtn }}
-                      title="فتح والانتقال لجدول السجلات والبحث في الشاشة الرئيسية"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>📂 عرض واستعراض السجلات ({records.length} سجل)</span>
-                    </button>
-
-                    {/* زر إضافة منتسب جديد */}
-                    <button
-                      onClick={handleAddNewPersonnel}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white transition-all hover:brightness-110 shadow-sm cursor-pointer"
-                      style={{ backgroundColor: '#059669' }}
-                      title="إضافة سجل منتسب جديد مباشرة"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      <span>➕ إضافة منتسب جديد</span>
-                    </button>
-
-                    {/* زر تصدير وتحميل قاعدة البيانات */}
-                    <button
-                      onClick={() => triggerExcelDownload(records, 'database.xlsx')}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs border transition-colors shadow-sm cursor-pointer"
-                      style={{
-                        backgroundColor: isDarkMode ? '#333333' : '#f0f0f0',
-                        borderColor: isDarkMode ? '#484848' : '#d0d0d0',
-                        color: isDarkMode ? '#e5e7eb' : '#374151',
-                      }}
-                      title="تنزيل وتصدير كافة السجلات إلى Excel"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                      <span>📥 تصدير السجلات Excel</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBeginHomeExcelSelection(true);
-                        setActiveView('home');
-                      }}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-500 cursor-pointer"
-                      title="الانتقال إلى جدول المنتسبين لتحديد الأسماء ثم تنزيلها"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" /> تحميل المحدد
-                    </button>
-                  </div>
-                </div>
-
                 {/* CARD 1: C: Drive Instant Persistence & Save Location */}
                 <div
                   className="rounded-2xl p-5 border transition-colors text-right"
@@ -1774,7 +1770,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>الحفظ والتحديث الفوري في قرص C: مفعّل</span>
+                      <span>نسخة شاملة تتحدث بعد ربط المجلد</span>
                     </span>
                     <h3
                       className="font-bold text-base flex items-center gap-2"
@@ -1789,7 +1785,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                     className="text-xs mb-4 leading-relaxed"
                     style={{ color: isDarkMode ? '#a0a0a0' : '#666666' }}
                   >
-                    اختر المجلد في قرص C: ليتم حفظ قاعدة بيانات الإكسل به، وأي عملية إضافة أو تعديل أو حذف يتم تحديثها فورياً وتلقائياً دون أي تعقيدات:
+                    اختر مجلداً فعلياً لحفظ النسخة الشاملة مع الصور وPDF لجميع الأقسام. يتحدث الملف نفسه تلقائياً بعد تغيير البيانات أو المرفقات، ويحتوي تاريخ آخر حفظ.
                   </p>
 
                   {/* Primary C: Drive Location Button (منقول إلى تبويبة الإعدادات) */}
@@ -1805,7 +1801,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                     </button>
 
                     <button
-                      onClick={() => setIsDirDialogOpen(true)}
+                      onClick={() => setIsStorageModalOpen(true)}
                       className="flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-xs border transition-colors cursor-pointer"
                       style={{
                         backgroundColor: isDarkMode ? '#333333' : '#f0f0f0',
@@ -1816,15 +1812,19 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                       <FolderOpen className="w-4 h-4 text-amber-400" />
                       <span>تحديد مسار مخصص...</span>
                     </button>
+                    <button onClick={async () => { const connected = await reconnectBackupDirectory(true); if (!connected) setIsStorageModalOpen(true); }} className="px-4 py-3 rounded-xl text-xs font-bold text-emerald-200 border border-emerald-700">إعادة تفعيل الحفظ للنسخة</button>
+                    <button disabled={backupBusy} onClick={exportCompleteBackup} className="px-4 py-3 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50"><Download className="w-4 h-4 inline ml-2" />تحميل نسخة احتياطية</button>
+                    <button disabled={backupBusy} onClick={() => excelFileInputRef.current?.click()} className="px-4 py-3 rounded-xl text-xs font-bold text-white bg-violet-700 hover:bg-violet-600 disabled:opacity-50"><Upload className="w-4 h-4 inline ml-2" />رفع نسخة احتياطية</button>
                   </div>
 
+                  <p className="text-xs text-neutral-400 mb-3">ملف التحديث التلقائي: <span dir="ltr">{AUTO_BACKUP_FILENAME}</span></p>
                   <div className="flex items-center gap-2.5">
                     <div className="flex-1 relative">
                       <input
                         type="text"
                         dir="ltr"
                         value={config.default_save_path}
-                        onChange={(e) => onUpdateConfig({ default_save_path: e.target.value })}
+                        readOnly
                         className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono border focus:outline-hidden transition-colors"
                         style={{
                           backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
@@ -1838,26 +1838,26 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
 
                   <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] gap-2 pt-2 border-t border-neutral-800/40">
                     <span className="text-emerald-400 font-medium">
-                      🟢 التحديث الفوري المباشر نشط (Real-Time Auto-Save to C:)
+                      {automaticBackupStatus}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <span style={{ color: isDarkMode ? '#777777' : '#888888' }}>مسارات سريعة مقترحة:</span>
                       <button
-                        onClick={() => handleSelectPath('C:\\سجل_المنتسبين')}
+                        onClick={() => setIsStorageModalOpen(true)}
                         className="px-2 py-0.5 rounded-md hover:underline font-mono text-blue-400"
                       >
                         C:\سجل_المنتسبين
                       </button>
                       <span>·</span>
                       <button
-                        onClick={() => handleSelectPath('C:\\ProgramData\\AppExports')}
+                        onClick={() => setIsStorageModalOpen(true)}
                         className="px-2 py-0.5 rounded-md hover:underline font-mono text-blue-400"
                       >
                         C:\ProgramData\AppExports
                       </button>
                       <span>·</span>
                       <button
-                        onClick={() => handleSelectPath('C:\\Users\\Admin\\Documents\\MilitaryDB')}
+                        onClick={() => setIsStorageModalOpen(true)}
                         className="px-2 py-0.5 rounded-md hover:underline font-mono text-blue-400"
                       >
                         C:\Users\Admin\Documents\MilitaryDB
@@ -1877,14 +1877,14 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
                       <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>مبني على هيكلية ملف Excel المرفوع ({TOTAL_PERSONNEL_FIELDS} حقلاً)</span>
+                      <span>كل الأقسام + الصور + PDF + تاريخ النسخة</span>
                     </span>
                     <h3
                       className="font-bold text-base flex items-center gap-2"
                       style={{ color: isDarkMode ? '#ffffff' : '#1a1a1a' }}
                     >
                       <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
-                      <span>تحميل ورفع ملف Excel (تعبئة تلقائية للحقول)</span>
+                      <span>نسخة Excel شاملة للنظام والمرفقات</span>
                     </h3>
                   </div>
 
@@ -1892,14 +1892,14 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                     className="text-xs mb-4 leading-relaxed"
                     style={{ color: isDarkMode ? '#a0a0a0' : '#666666' }}
                   >
-                    النظام مبني بالكامل على قاعدة بيانات Excel - عند رفع الملف من جهازك تتم قراءة العناوين وتعبئة حقول التبويبات المطابقة تلقائياً، وتحديث الجدول فوراً والحفظ المباشر في قرص C::
+                    نسخة مؤرخة تشمل جميع أقسام النظام مع الصور وملفات PDF داخل نفس الملف. رفع النسخة يسترجع السجلات ومرفقاتها محلياً دون إنترنت. احتفظ بالملف كما هو لضمان سلامة الاسترجاع.
                   </p>
 
                   {/* Hidden file input for native Excel upload */}
                   <input
                     type="file"
                     ref={excelFileInputRef}
-                    onChange={handleDirectExcelUpload}
+                    onChange={importCompleteBackup}
                     accept=".xlsx, .xls"
                     className="hidden"
                   />
@@ -1907,24 +1907,24 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Button 1: Upload Excel File */}
                     <button
-                      onClick={() => excelFileInputRef.current?.click()}
+                      disabled={backupBusy} onClick={() => excelFileInputRef.current?.click()}
                       className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white transition-all hover:brightness-110 shadow-sm cursor-pointer"
                       style={{ backgroundColor: '#107C41' }}
-                      title={`رفع ملف إكسل من جهازك وملء الحقول الـ ${TOTAL_PERSONNEL_FIELDS} تلقائياً`}
+                      title="استرجاع جميع الأقسام والمرفقات"
                     >
                       <Upload className="w-4 h-4" />
-                      <span>📤 رفع ملف Excel وتعبئة الحقول</span>
+                      <span>📤 استرجاع نسخة Excel شاملة</span>
                     </button>
 
                     {/* Button 2: Download / Export database.xlsx */}
                     <button
-                      onClick={() => triggerExcelDownload(records, 'database.xlsx')}
+                      disabled={backupBusy} onClick={exportCompleteBackup}
                       className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white transition-all hover:brightness-110 shadow-sm cursor-pointer"
                       style={{ backgroundColor: currentTheme.activeBtn }}
-                      title="تحميل وتصدير ملف database.xlsx ببيانات المنتسبين الحالية"
+                      title="تحميل جميع السجلات والمرفقات في نسخة مؤرخة"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
-                      <span>📥 تحميل وتصدير database.xlsx</span>
+                      <span>{backupBusy ? 'جارٍ معالجة النسخة…' : '📥 تحميل نسخة Excel شاملة'}</span>
                     </button>
 
                     {/* Button 3: Browse Pre-made Sample Files */}
@@ -3312,10 +3312,10 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
       </div>
 
       {/* نافذة إضافة صادر جديد / وارد جديد مع السحب والإفلات للصور والـ PDF */}
-      {isAddDocModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+      {isAddDocModalOpen && createPortal(
+        <div dir="ltr" className="fixed inset-0 z-[150] overflow-y-auto bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div
-            className="w-full max-w-xl rounded-2xl shadow-2xl p-6 border text-right font-sans max-h-[90vh] overflow-y-auto"
+            dir="rtl" className="w-full max-w-xl mx-auto my-4 rounded-2xl shadow-2xl p-6 border text-right font-sans"
             style={{
               backgroundColor: isDarkMode ? '#232323' : '#ffffff',
               borderColor: isDarkMode ? '#3d3d3d' : '#e2e8f0',
@@ -3472,7 +3472,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                               <span className="text-[10px] text-neutral-400">{formatFileSize(att.size)}</span>
                             </div>
                           </div>
-                          {att.type === 'image' && <ImagePreviewButton src={att.dataUrl} name={att.name} className="text-[10px] font-bold text-blue-400 flex items-center gap-1 cursor-pointer" />}
+                          {att.type === 'image' && <ImagePreviewButton onDelete={() => setNewDocAttachments(current => current.filter(item => item.id !== att.id))} src={att.dataUrl} name={att.name} className="text-[10px] font-bold text-blue-400 flex items-center gap-1 cursor-pointer" />}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -3518,170 +3518,15 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* نافذة معاينة الصور بالحجم الكامل (Lightbox) */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-150 backdrop-blur-xs font-sans text-right"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[92vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
-            <div className="w-full flex flex-wrap items-center justify-between gap-2 pb-3 mb-2 text-white border-b border-white/10 text-xs">
-              <div className="flex items-center gap-2 max-w-md">
-                <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="font-bold truncate text-sm">{previewImage.title}</span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {/* زر تحميل الصورة على سطح المكتب أو اختياري */}
-                <button
-                  onClick={() => handleSaveFileWithPicker(previewImage.url, previewImage.title, 'image')}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 shadow-md cursor-pointer transition-colors"
-                  title="حفظ الصورة على سطح المكتب أو اختيار أي مجلد على جهازك"
-                >
-                  <FolderDown className="w-4 h-4" />
-                  <span>حفظ على سطح المكتب / اختياري</span>
-                </button>
-
-                {/* زر تنزيل مباشر */}
-                <a
-                  href={previewImage.url}
-                  download={previewImage.title}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1.5 shadow-md cursor-pointer transition-colors"
-                  title="تنزيل مباشر إلى مجلد التنزيلات"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>تنزيل مباشر</span>
-                </a>
-
-                {/* زر تعديل اسم الصورة */}
-                {previewImage.docId && previewImage.attId && (
-                  <button
-                    onClick={() => {
-                      setEditingAtt({
-                        docId: previewImage.docId!,
-                        attId: previewImage.attId!,
-                        name: previewImage.title,
-                      });
-                      setEditAttName(previewImage.title);
-                    }}
-                    className="p-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white cursor-pointer transition-colors"
-                    title="تعديل اسم الصورة"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* زر حذف الصورة */}
-                {previewImage.docId && previewImage.attId && (
-                  <button
-                    onClick={(e) => {
-                      handleDeleteAttachment(previewImage.docId!, previewImage.attId!, e);
-                      setPreviewImage(null);
-                    }}
-                    className="p-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white cursor-pointer transition-colors"
-                    title="حذف هذه الصورة"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setPreviewImage(null)}
-                  className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/40 cursor-pointer transition-colors"
-                  title="إغلاق المعاينة"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <img
-              src={previewImage.url}
-              alt={previewImage.title}
-              className="max-h-[78vh] max-w-full rounded-2xl object-contain shadow-2xl border border-white/10"
-            />
-          </div>
-        </div>
-      )}
+      {previewImage && <AttachmentPreview src={previewImage.url} name={previewImage.title} isPdf={false} onClose={() => setPreviewImage(null)} onDelete={previewImage.docId && previewImage.attId ? () => handleDeleteAttachment(previewImage.docId!, previewImage.attId!) : undefined} />}
 
       {/* نافذة معاينة ملف الـ PDF */}
-      {previewPdf && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-in fade-in duration-150 backdrop-blur-xs font-sans text-right"
-          onClick={() => setPreviewPdf(null)}
-        >
-          <div
-            className="w-full max-w-4xl h-[88vh] rounded-2xl shadow-2xl border flex flex-col overflow-hidden"
-            style={{
-              backgroundColor: isDarkMode ? '#222222' : '#ffffff',
-              borderColor: isDarkMode ? '#3d3d3d' : '#cbd5e1',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex flex-wrap items-center justify-between p-3.5 border-b gap-2" style={{ borderColor: isDarkMode ? '#333333' : '#e5e7eb' }}>
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-rose-500" />
-                <span className="text-xs sm:text-sm font-bold truncate max-w-md" style={{ color: isDarkMode ? '#ffffff' : '#0f172a' }}>
-                  {previewPdf.title}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* حفظ ملف PDF على سطح المكتب أو اختياري */}
-                <button
-                  onClick={() => handleSaveFileWithPicker(previewPdf.url, previewPdf.title, 'pdf')}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500 shadow-md cursor-pointer transition-colors"
-                  title="حفظ ملف PDF على سطح المكتب أو أي مسار تختاره"
-                >
-                  <FolderDown className="w-3.5 h-3.5" />
-                  <span>حفظ على سطح المكتب / اختياري</span>
-                </button>
-
-                <a
-                  href={previewPdf.url}
-                  download={previewPdf.title}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center gap-1.5 hover:bg-blue-500 shadow-md transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>تنزيل مباشر</span>
-                </a>
-
-                {/* حذف ملف الـ PDF */}
-                {previewPdf.docId && previewPdf.attId && (
-                  <button
-                    onClick={(e) => {
-                      handleDeleteAttachment(previewPdf.docId!, previewPdf.attId!, e);
-                      setPreviewPdf(null);
-                    }}
-                    className="p-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white cursor-pointer transition-colors"
-                    title="حذف هذا الملف"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setPreviewPdf(null)}
-                  className="p-1.5 rounded-lg text-neutral-400 hover:text-white cursor-pointer"
-                  title="إغلاق"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 w-full bg-neutral-900 flex items-center justify-center p-2">
-              <iframe
-                src={previewPdf.url}
-                title={previewPdf.title}
-                className="w-full h-full rounded-xl border border-neutral-800"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {previewPdf && <AttachmentPreview src={previewPdf.url} name={previewPdf.title} isPdf={true} onClose={() => setPreviewPdf(null)} onDelete={previewPdf.docId && previewPdf.attId ? () => handleDeleteAttachment(previewPdf.docId!, previewPdf.attId!) : undefined} />}
 
       {/* نافذة تعديل بيانات الكتاب (الصادر / الوارد) */}
       {editingDoc && (
@@ -3962,5 +3807,6 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
         isDarkMode={isDarkMode}
       />
     </div>
+    </SearchRecordNavigation.Provider>
   );
 };

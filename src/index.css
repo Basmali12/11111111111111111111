@@ -219,17 +219,17 @@
   }
 }
 
-/* Custom scrollbars for code preview */
+/* Wider scrollbars shared by all application pages. */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 14px;
+  height: 12px;
 }
 ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.1);
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(150, 150, 150, 0.3);
-  border-radius: 4px;
+  border-radius: 7px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(150, 150, 150, 0.5);
@@ -305,3 +305,48 @@
   height: 16px;
   flex-shrink: 0;
 }
+
+/* Keep the document scrollbar on the right while preserving Arabic content. */
+html { direction: ltr; scrollbar-gutter: stable; }
+body { direction: rtl; }
+
+/* Tab content grows with the page instead of creating nested vertical scrollers. */
+.military-panel .overflow-y-auto {
+  overflow-y: visible;
+  max-height: none;
+}
+/* Keep navigation and preview controls reachable at every viewport size. */
+.app-shell-header { z-index: 2000001; }
+.fixed.inset-0 { top: var(--app-header-height, 0px); }
+.fixed.inset-0 > div { max-height: 100%; }
+.media-preview-overlay { overflow-y: auto; }
+.media-preview-overlay > div > div:first-child { flex-shrink: 0; }
+.access-screen{min-height:100dvh;display:grid;place-items:center;padding:28px 18px;background:#050d0b;color:#eef8f4;position:relative;isolation:isolate;overflow:hidden;font-family:inherit}
+.access-orb{position:absolute;width:520px;height:520px;filter:blur(95px);border-radius:50%;pointer-events:none;z-index:-1;opacity:.17;background:#0ac18a}
+.access-orb-one{top:-240px;right:-160px}.access-orb-two{bottom:-320px;left:-100px;background:#b6a14f;opacity:.12}
+.access-card{width:min(880px,100%);display:grid;grid-template-columns:1fr 1fr;border:1px solid #37685370;border-radius:28px;overflow:hidden;box-shadow:0 30px 100px #0008;background:#0b1613e8;backdrop-filter:blur(20px)}
+.access-art{padding:28px 32px 24px;text-align:center;background:radial-gradient(ellipse at center,#14392d 0,#091711 72%);border-left:1px solid #2e554440;display:flex;flex-direction:column;align-items:center}
+.access-logo{width:70px;height:92px;object-fit:contain;filter:drop-shadow(0 0 18px #cab13d25)}
+.access-institution{font-size:20px;font-weight:800;color:#e0d392;margin-top:12px}.access-unit{font-size:12px;color:#83b5a0;margin-top:4px}
+.access-portrait-wrap{width:100%;max-width:245px;height:260px;display:grid;place-items:center;margin:18px 0 12px;position:relative}.access-portrait-wrap:before{content:'';position:absolute;inset:20px;border-radius:50%;background:#27a27824;filter:blur(30px)}.access-portrait{width:100%;height:100%;object-fit:contain;position:relative;filter:drop-shadow(0 12px 16px #0007)}
+.access-art blockquote{font-size:14px;line-height:1.9;color:#c3d8cc;max-width:260px}
+.access-form-panel{padding:48px 42px;display:flex;flex-direction:column;justify-content:center}.access-eyebrow{display:flex;align-items:center;gap:7px;color:#91baa8;font-size:12px;margin-bottom:32px}.access-lock{width:60px;height:60px;display:grid;place-items:center;color:#52dfb0;background:#0c3026;border:1px solid #22785a66;border-radius:19px;margin-bottom:24px}
+.access-form-panel h1{font-size:29px;font-weight:800;line-height:1.5}.access-description{color:#91a99d;font-size:13px;line-height:1.9;margin:8px 0 26px}.access-form-panel label{display:block;font-size:12px;color:#cee0d7;margin-bottom:9px}
+.access-input-wrap{position:relative}.access-input-wrap svg{position:absolute;right:16px;top:18px;color:#6c9985}.access-input-wrap input{width:100%;height:55px;background:#06110e;border:1px solid #315342;border-radius:13px;padding:0 46px 0 16px;color:white;font-size:17px;outline:none;transition:border-color .2s,box-shadow .2s;direction:ltr;text-align:right}.access-input-wrap input:focus{border-color:#36bb8b;box-shadow:0 0 0 4px #22be8512}.access-input-wrap input::placeholder{font-size:13px;color:#647f70}
+.access-error{min-height:44px;padding:10px 0;color:#fb9b96;font-size:12px;line-height:1.8}.access-submit{display:flex;justify-content:center;align-items:center;gap:12px;height:51px;width:100%;border-radius:13px;border:1px solid #43d3a357;background:linear-gradient(125deg,#0e9c6b,#087551);color:white;font-weight:700;cursor:pointer;transition:transform .2s,filter .2s;box-shadow:0 8px 28px #03976922}.access-submit:hover{filter:brightness(1.13);transform:translateY(-1px)}.access-submit:disabled{opacity:.5;cursor:default;transform:none}.access-footer{font-size:11px;text-align:center;color:#607e6d;margin-top:30px}.access-offline{font-size:12px;color:#e0c792;margin-top:14px}
+@media(max-width:640px){.access-screen{padding:16px 12px}.access-card{grid-template-columns:1fr;border-radius:22px}.access-art{padding:20px;border-left:0;border-bottom:1px solid #2e554440}.access-logo{width:49px;height:66px}.access-institution{font-size:17px}.access-portrait-wrap{height:125px;max-width:135px;margin:10px 0}.access-art blockquote{font-size:12px}.access-form-panel{padding:28px 24px}.access-eyebrow{margin-bottom:18px}.access-lock{width:48px;height:48px;margin-bottom:14px}.access-form-panel h1{font-size:25px}.access-description{margin-bottom:18px}}
+/* The unit name and motto frame the portrait on the sign-in screen. */
+.access-unit{width:100%;min-height:64px;margin-top:16px;padding:12px 15px;display:flex;align-items:center;justify-content:center;gap:12px;border-radius:16px;border:1px solid #c3a95265;background:linear-gradient(115deg,#74602813,#173d2a70,#74602813);box-shadow:inset 0 1px 0 #eee1a517,0 8px 24px #0002;position:relative;isolation:isolate;overflow:hidden}
+.access-unit::before{content:'';position:absolute;inset:-100% -65%;background:linear-gradient(105deg,transparent 43%,#fae4a215 49%,#fae4a205 54%,transparent 60%);animation:access-title-sweep 7s ease-in-out infinite;z-index:-1;pointer-events:none}
+.access-unit-title{font-size:clamp(20px,2.5vw,26px);font-weight:900;line-height:1.7;white-space:nowrap;color:#f3dea1;background:linear-gradient(100deg,#cfad54 0%,#fceabd 35%,#fff9dd 48%,#d8b85e 65%,#cfad54 100%);background-size:240% 100%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:access-gold-flow 6s ease-in-out infinite}
+.access-unit-star{font-size:13px;color:#d7bd70;animation:access-star-glow 4s ease-in-out infinite}.access-unit-star:last-child{animation-delay:2s}
+.access-portrait-wrap{margin-bottom:0}
+.access-art .access-motto{max-width:none;width:100%;margin-top:28px;padding:19px 14px 15px;position:relative;border-radius:15px;border:1px solid #40745d55;background:linear-gradient(145deg,#0d2a2180,#10231a80);box-shadow:0 8px 22px #0002;font-size:16px;line-height:1.8;animation:access-motto-float 6s ease-in-out infinite}
+.access-motto>span:not(.access-motto-divider){display:block;font-size:15px;color:#b5d8c5}.access-motto strong{display:block;margin-top:2px;font-size:17px;font-weight:700;color:#f0dfac}
+.access-motto-divider{position:absolute;top:-13px;right:50%;transform:translateX(50%);padding:0 14px;background:#0b1d15;color:#cdb46d;font-size:16px;line-height:25px}
+@keyframes access-title-sweep{0%,20%{transform:translateX(65%)}80%,100%{transform:translateX(-65%)}}
+@keyframes access-gold-flow{0%,100%{background-position:100% 50%}50%{background-position:0% 50%}}
+@keyframes access-star-glow{0%,100%{opacity:.55;filter:drop-shadow(0 0 0 transparent)}50%{opacity:1;filter:drop-shadow(0 0 6px #e4c67470)}}
+@keyframes access-motto-float{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+@media(max-width:640px){.access-unit{max-width:360px;min-height:54px;padding:9px 12px;gap:10px;margin-top:12px}.access-unit-title{font-size:22px}.access-art .access-motto{max-width:360px;margin-top:24px;padding:15px 10px 12px}.access-motto>span:not(.access-motto-divider){font-size:13px}.access-motto strong{font-size:15px}}
+@media(prefers-reduced-motion:reduce){.access-unit::before,.access-unit-title,.access-unit-star,.access-art .access-motto{animation:none}}

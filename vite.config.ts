@@ -46,8 +46,10 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,json}'],
-          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          navigateFallback: 'index.html',
+          cleanupOutdatedCaches: true,
+          globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,json,woff,woff2,ttf,pfb,bcmap,wasm,txt}'],
+          maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
           globIgnores: ['**/header-military-banner.png', '**/iraq-eagle-transparent.png', '**/sidebar-portrait-transparent.png', '**/sidebar-soldiers.png', '**/soldiers-no-smoke.png'],
         },
       }),

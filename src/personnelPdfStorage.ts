@@ -1,3 +1,4 @@
+import { notifyBackupChanged } from './automaticBackup';
 const DATABASE_NAME = 'military_personnel_pdf_files';
 const DATABASE_VERSION = 1;
 const STORE_NAME = 'pdf_files';
@@ -84,6 +85,7 @@ export const savePersonnelFile = async (
   try {
     const transaction = database.transaction(STORE_NAME, 'readwrite');
     await requestResult(transaction.objectStore(STORE_NAME).put(item));
+    notifyBackupChanged();
     return item;
   } finally {
     database.close();
@@ -105,7 +107,29 @@ export const deletePersonnelFile = async (id: string): Promise<void> => {
   try {
     const transaction = database.transaction(STORE_NAME, 'readwrite');
     await requestResult(transaction.objectStore(STORE_NAME).delete(id));
+    notifyBackupChanged();
   } finally {
     database.close();
   }
+};
+
+export const listAllPersonnelFiles = async (): Promise<StoredPersonnelFile[]> => {
+  const database = await openDatabase();
+  try {
+    return await requestResult(database.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll());
+  } finally { database.close(); }
+};
+
+export const replacePersonnelFiles = async (files: StoredPersonnelFile[]): Promise<void> => {
+  const database = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, 'readwrite');
+      transaction.oncomplete = () => { notifyBackupChanged(); resolve(); };
+      transaction.onabort = () => reject(transaction.error || new Error('تعذر استرجاع المرفقات.'));
+      const store = transaction.objectStore(STORE_NAME);
+      store.clear();
+      for (const file of files) store.put(file);
+    });
+  } finally { database.close(); }
 };

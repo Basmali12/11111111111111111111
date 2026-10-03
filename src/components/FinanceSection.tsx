@@ -1,3 +1,4 @@
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useState } from 'react';
 import { ArrowRight, BookOpen, WalletCards } from 'lucide-react';
 import { FinancialRecords } from './FinancialRecords';
@@ -10,7 +11,8 @@ interface Props {
 }
 
 export const FinanceSection: React.FC<Props> = (props) => {
-  const [section, setSection] = useState<'menu' | 'records' | 'general'>('menu');
+  const searchTarget = useSearchRecordTarget();
+  const [section, setSection] = useState<'menu' | 'records' | 'general'>(searchTarget?.category === 'finance' ? 'records' : searchTarget?.source === 'السجل المالي العام' ? 'general' : 'menu');
   if (section === 'records') return <FinancialRecords {...props} onBack={() => setSection('menu')} />;
   if (section === 'general') return <GeneralFinancialLedger {...props} onBack={() => setSection('menu')} />;
 

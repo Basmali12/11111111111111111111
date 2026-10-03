@@ -1,3 +1,4 @@
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ChevronUp, FileDown, FileUp, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -74,12 +75,14 @@ const cleanDigitsAndLetters = (text: string): string => {
 };
 
 export const FaultyWeaponsRecords: React.FC<FaultyWeaponsRecordsProps> = ({ isDarkMode, onBack, onShowToast }) => {
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'weapons' ? target : null;
   const [records, setRecords] = useState<FaultyWeaponRecord[]>(readRecords);
   const selection = useExcelSelection(records, (record) => record.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState<FaultyWeaponForm>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);

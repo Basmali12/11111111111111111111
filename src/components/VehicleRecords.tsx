@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
@@ -99,12 +101,23 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
   onBack,
   onShowToast,
 }) => {
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'vehicles' ? target : null;
   const [records, setRecords] = useState<VehicleRecord[]>(readRecords);
   const selection = useExcelSelection(records, (record) => record.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<VehicleFormState>(EMPTY_FORM);
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState<VehicleRecord | null>(null);
   const [pendingImageDeleteRecord, setPendingImageDeleteRecord] = useState<VehicleRecord | null>(null);
@@ -501,7 +514,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
               {form.authorizationImageDataUrl && (
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <img src={form.authorizationImageDataUrl} alt="معاينة تخويل العجلة" className="w-28 h-20 rounded-lg object-cover border border-teal-500/30" />
-                  <ImagePreviewButton src={form.authorizationImageDataUrl} name={form.authorizationImageName || 'تخويل العجلة'} />
+                  <ImagePreviewButton src={form.authorizationImageDataUrl} onDelete={() => removeAttachment(form.authorizationImageDataUrl!, undefined)} name={form.authorizationImageName || 'تخويل العجلة'} />
                   <button type="button" onClick={() => setForm((current) => ({ ...current, authorizationImageName: '', authorizationImageDataUrl: '' }))} className="px-3 py-2 rounded-lg text-[11px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 cursor-pointer">حذف الصورة من النموذج</button>
                   <span className="text-[10px] text-neutral-500">يمكن اختيار صورة جديدة لاستبدال الحالية.</span>
                 </div>
@@ -666,47 +679,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
         }}
         onCancel={() => setPendingImageDeleteRecord(null)}
       />
-      {createPortal(
-        <AnimatePresence>
-          {previewRecord && (
-            <motion.div
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
-              dir="rtl"
-              role="presentation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setPreviewRecord(null);
-              }}
-            >
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                aria-label={`معاينة تخويل عجلة ${previewRecord.driverName}`}
-                className="w-full max-w-5xl max-h-[92vh] rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
-                style={{ backgroundColor: isDarkMode ? '#202020' : '#ffffff', borderColor: isDarkMode ? '#444444' : '#e2e8f0' }}
-                initial={{ opacity: 0, scale: 0.92, y: 24 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              >
-                <div className="flex items-center justify-between gap-3 p-4 border-b" style={{ borderColor: isDarkMode ? '#3b3b3b' : '#e2e8f0' }}>
-                  <div className="min-w-0"><h3 className="text-sm font-bold">معاينة تخويل العجلة</h3><p className="text-[10px] text-neutral-400 mt-1 truncate">{previewRecord.authorizationImageName}</p></div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <a href={previewRecord.authorizationImageDataUrl} download={previewRecord.authorizationImageName || 'تخويل_العجلة'} className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-2"><Download className="w-4 h-4" /> تنزيل الصورة</a>
-                    <button type="button" onClick={() => setPreviewRecord(null)} className="p-2.5 rounded-xl bg-neutral-700 hover:bg-neutral-600 text-white cursor-pointer" aria-label="إغلاق معاينة تخويل العجلة"><X className="w-4 h-4" /></button>
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0 overflow-auto p-4 flex items-center justify-center" style={{ backgroundColor: isDarkMode ? '#111111' : '#f8fafc' }}>
-                  <img src={previewRecord.authorizationImageDataUrl} alt={`تخويل عجلة السائق ${previewRecord.driverName}`} className="max-w-full max-h-[76vh] object-contain rounded-xl" />
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      {previewRecord && <AttachmentPreview src={previewRecord.authorizationImageDataUrl} name={previewRecord.authorizationImageName || 'تخويل العجلة'} onClose={() => setPreviewRecord(null)} onDelete={() => removeAttachment(previewRecord.authorizationImageDataUrl, previewRecord.id)} />}
     </div>
   );
 };

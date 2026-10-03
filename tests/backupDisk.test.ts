@@ -1,0 +1,21 @@
+import {mkdtemp,writeFile,readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import assert from 'node:assert/strict';
+import * as XLSX from 'xlsx';
+import {writeCompleteBackup,AUTO_BACKUP_FILENAME} from '../src/automaticBackup';
+import {parseSystemWorkbook} from '../src/systemBackup';
+const temporary=await mkdtemp(join(process.cwd(),'../../outputs/backup-disk-test-'));
+(globalThis as any).localStorage={getItem:()=>null};
+(globalThis as any).indexedDB={open:()=>{
+ const request:any={result:{transaction:()=>({objectStore:()=>({getAll:()=>{const result:any={result:[]};queueMicrotask(()=>result.onsuccess());return result;}})}),close:()=>{}}};
+ queueMicrotask(()=>request.onsuccess());return request;
+}};
+const filename=join(temporary,AUTO_BACKUP_FILENAME);
+const file={kind:'file',name:AUTO_BACKUP_FILENAME,createWritable:async()=>({write:async(buffer:ArrayBuffer)=>writeFile(filename,new Uint8Array(buffer)),close:async()=>{}}),getFile:async()=>new Blob([await readFile(filename)])};
+const records=[{seq:1,military_id:'fixture',fullname:'اختبار الحفظ',position:'',phone:''}];
+await writeCompleteBackup(file,records);
+const result=await parseSystemWorkbook(XLSX.read(await readFile(filename),{type:'buffer'}));
+assert.deepEqual(result.records,records);
+records[0].fullname='اختبار التحديث';await writeCompleteBackup(file,records);
+assert.equal((await parseSystemWorkbook(XLSX.read(await readFile(filename),{type:'buffer'}))).records[0].fullname,'اختبار التحديث');
+console.log('PASS: actual disk file created, read back, parsed and updated through direct-file target.');

@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ChevronUp, FileDown, FileUp, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -85,13 +87,24 @@ const readCell = (row: Record<string, unknown>, keys: string[]) => {
 };
 
 export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBack, onShowToast }) => {
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'weapons' ? target : null;
   const [records, setRecords] = useState<FighterRecord[]>(readRecords);
   const selection = useExcelSelection(records, (record) => record.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<FighterForm>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -407,7 +420,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
             <div className="sm:col-span-2 rounded-xl border p-3" style={{ borderColor: isDarkMode ? '#3e3e3e' : '#cbd5e1' }}>
               <div className="text-[11px] font-bold text-neutral-300 mb-2">رفع صورة</div>
               <label className="min-h-24 rounded-xl border border-dashed border-amber-500/60 flex items-center justify-center gap-3 px-4 py-3 cursor-pointer hover:bg-amber-500/5"><ImagePlus className="w-6 h-6 text-amber-400" /><span className="text-sm font-bold text-amber-400">102</span><span className="text-[10px] text-neutral-400">{form.imageName || 'اختيار صورة'}</span><input type="file" accept="image/*" onChange={(event) => selectImage(event.target.files?.[0])} className="sr-only" aria-label="102 اختيار صورة المقاتل" /></label>
-              {form.imageDataUrl && <div className="mt-3 flex items-center gap-3"><img src={form.imageDataUrl} alt="معاينة صورة المقاتل" className="w-20 h-16 rounded-lg object-cover" /><ImagePreviewButton src={form.imageDataUrl} name={form.imageName || 'صورة المقاتل'} /><button type="button" onClick={() => setForm((current) => ({ ...current, imageName: '', imageDataUrl: '' }))} className="text-[11px] text-red-400 cursor-pointer">إزالة الصورة</button></div>}
+              {form.imageDataUrl && <div className="mt-3 flex items-center gap-3"><img src={form.imageDataUrl} alt="معاينة صورة المقاتل" className="w-20 h-16 rounded-lg object-cover" /><ImagePreviewButton src={form.imageDataUrl} onDelete={() => removeAttachment(form.imageDataUrl!, undefined)} name={form.imageName || 'صورة المقاتل'} /><button type="button" onClick={() => setForm((current) => ({ ...current, imageName: '', imageDataUrl: '' }))} className="text-[11px] text-red-400 cursor-pointer">إزالة الصورة</button></div>}
             </div>
             <label className="text-[11px] font-bold text-neutral-300 sm:col-span-2 lg:col-span-4">الملاحظات<textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} placeholder="أدخل الملاحظات" rows={3} className="w-full mt-1.5 py-2.5 px-3 rounded-xl text-xs border text-right resize-y focus:outline-hidden" style={inputStyle} /></label>
           </div>
@@ -423,7 +436,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
             <div className="flex items-center">{selection.enabled && <div className="px-3"><ExcelRowCheckbox checked={selection.selectedIds.has(record.id)} label={record.fighterName} onChange={() => selection.toggle(record.id)} /></div>}<button type="button" onClick={() => setExpandedId(expandedId === record.id ? null : record.id)} aria-expanded={expandedId === record.id} aria-label={`فتح تفاصيل المقاتل ${record.fighterName}`} className="flex-1 grid grid-cols-[64px_minmax(220px,1.4fr)_minmax(170px,1fr)_minmax(160px,1fr)_52px] items-center px-4 py-3 text-right hover:bg-amber-500/5 cursor-pointer"><span>{record.sequence}</span><span className="font-bold truncate">{record.fighterName}</span><span className="text-xs truncate">{record.weaponType || '—'}</span><span className="text-xs truncate">{record.weaponNumber || '—'}</span><span className="flex justify-center">{expandedId === record.id ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-neutral-400" />}</span></button></div>
             {expandedId === record.id && <div className="px-4 pb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
               {([['التسلسل', record.sequence], ['اسم المقاتل', record.fighterName], ['نوع السلاح', record.weaponType], ['رقم السلاح', record.weaponNumber], ['عدد المخازن', record.magazinesCount], ['العتاد', record.ammunition], ['الملاحظات', record.notes], ['102', record.imageName]] as Array<[string, string]>).map(([label, value]) => <div key={label} className="rounded-xl border p-3" style={{ borderColor: isDarkMode ? '#3b3b3b' : '#e2e8f0' }}><div className="text-[9px] text-neutral-500 mb-1">{label}</div><div className="text-[11px] font-bold break-words">{value || '—'}</div></div>)}
-              {record.imageDataUrl && <div className="col-span-2 md:col-span-4 rounded-xl border p-3" style={{ borderColor: isDarkMode ? '#3b3b3b' : '#e2e8f0' }}><img src={record.imageDataUrl} alt={`صورة المقاتل ${record.fighterName}`} className="max-h-52 w-full object-contain rounded-lg" /><div className="mt-2"><ImagePreviewButton src={record.imageDataUrl} name={record.imageName || `صورة ${record.fighterName}`} /></div></div>}
+              {record.imageDataUrl && <div className="col-span-2 md:col-span-4 rounded-xl border p-3" style={{ borderColor: isDarkMode ? '#3b3b3b' : '#e2e8f0' }}><img src={record.imageDataUrl} alt={`صورة المقاتل ${record.fighterName}`} className="max-h-52 w-full object-contain rounded-lg" /><div className="mt-2"><ImagePreviewButton src={record.imageDataUrl} onDelete={() => removeAttachment(record.imageDataUrl!, record.id)} name={record.imageName || `صورة ${record.fighterName}`} /></div></div>}
               <div className="col-span-2 md:col-span-4 flex flex-wrap items-center gap-2"><button type="button" onClick={() => openEditForm(record)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 flex items-center gap-2 cursor-pointer"><Pencil className="w-4 h-4" /> تعديل</button><button type="button" onClick={() => setPendingDeleteId(record.id)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 flex items-center gap-2 cursor-pointer"><Trash2 className="w-4 h-4" /> حذف</button></div>
             </div>}
           </div>)}

@@ -49,8 +49,10 @@ const getDetail = (record: MilitaryRecord, keys: string[]): string => {
 const getUnit = (record: MilitaryRecord): string =>
   getDetail(record, ['الوحدة واللواء والفوج', 'الوحدة / التشكيل', 'الوحدة', 'الفوج أو السرية']) || 'القيادة العامة';
 
-const getStatus = (record: MilitaryRecord): string =>
-  getDetail(record, ['حالة الخدمة', 'الحالة العسكرية', 'الحالة']) || 'على رأس الخدمة';
+const getStatus = (record: MilitaryRecord): string => {
+  if (getDetail(record, ['الرقم التقاعدي'])) return 'متقاعد';
+  return getDetail(record, ['حالة الخدمة', 'الحالة العسكرية', 'الحالة']) || 'على رأس الخدمة';
+};
 
 const statusTone = (status: string): string => {
   if (/تقاعد|متقاعد/.test(status)) return 'border-neutral-500/35 bg-neutral-500/10 text-neutral-300';
@@ -86,6 +88,20 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
 }) => {
   const [unitFilter, setUnitFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [highlightFilter, setHighlightFilter] = useState('all');
+  const [highlightedNames, setHighlightedNames] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('military_highlighted_names_v1') || '[]');
+      return Array.isArray(stored) ? stored.filter(value => typeof value === 'string') : [];
+    } catch { return []; }
+  });
+  const highlightKey = (record: MilitaryRecord) => record.military_id || String(record.seq);
+  const toggleHighlight = (record: MilitaryRecord) => {
+    const key = highlightKey(record);
+    const next = highlightedNames.includes(key) ? highlightedNames.filter(item => item !== key) : [...highlightedNames, key];
+    localStorage.setItem('military_highlighted_names_v1', JSON.stringify(next));
+    setHighlightedNames(next);
+  };
   const [page, setPage] = useState(1);
   const selection = useExcelSelection(records, (record) => String(record.seq));
   useEffect(() => {
@@ -103,9 +119,10 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
       const searchable = normalizeArabic(`${record.military_id} ${record.fullname} ${record.phone} ${record.position} ${getUnit(record)}`).toLowerCase();
       return (!query || searchable.includes(query))
         && (unitFilter === 'all' || getUnit(record) === unitFilter)
-        && (statusFilter === 'all' || getStatus(record) === statusFilter);
+        && (statusFilter === 'all' || getStatus(record) === statusFilter)
+        && (highlightFilter === 'all' || (highlightFilter === 'highlighted' ? highlightedNames.includes(highlightKey(record)) : !highlightedNames.includes(highlightKey(record))));
     });
-  }, [records, searchQuery, statusFilter, unitFilter]);
+  }, [records, searchQuery, statusFilter, unitFilter, highlightFilter, highlightedNames]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visibleRecords = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -171,6 +188,11 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
               <option value="all">جميع الوحدات</option>
               {units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
             </select>
+            <select aria-label="الاسم المميز" value={highlightFilter} onChange={event => { setHighlightFilter(event.target.value); setPage(1); }} className="h-10 min-w-32 bg-black/25 border border-red-500/25 px-3 text-xs">
+              <option value="all">الاسم المميز: الكل</option>
+              <option value="highlighted">الأسماء المميزة</option>
+              <option value="normal">الأسماء غير المميزة</option>
+            </select>
             <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="h-10 min-w-28 bg-black/25 border border-white/10 px-3 text-xs">
               <option value="all">كل الحالات</option>
               <option value="على رأس الخدمة">على رأس الخدمة</option>
@@ -196,9 +218,9 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
                   return (
                     <tr key={record.seq} onClick={() => onSelectRecord(record.seq)} onDoubleClick={() => onOpenDetails(record)} className={`cursor-pointer ${selected ? 'bg-emerald-500/12' : 'hover:bg-emerald-500/5'}`}>
                       {selection.enabled && <td className="px-3 py-3 border-b border-white/7"><ExcelRowCheckbox checked={selection.selectedIds.has(String(record.seq))} label={record.fullname} onChange={() => selection.toggle(String(record.seq))} /></td>}
-                      <td className="px-3 py-3 border-b border-white/7 text-neutral-400">{(page - 1) * pageSize + index + 1}</td>
+                      <td className="px-3 py-3 border-b border-white/7 text-neutral-400"><div className="flex items-center gap-2">{(page - 1) * pageSize + index + 1}<button type="button" aria-label={`تمييز ${record.fullname}`} aria-pressed={highlightedNames.includes(highlightKey(record))} onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); toggleHighlight(record); }} className={`w-3.5 h-3.5 shrink-0 rounded-sm border transition-colors ${highlightedNames.includes(highlightKey(record)) ? 'bg-red-500 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'border-neutral-500 bg-transparent hover:border-red-400'}`} /></div></td>
                       <td className="px-3 py-3 border-b border-white/7 font-mono font-bold" dir="ltr">{record.military_id}</td>
-                      <td className="px-3 py-3 border-b border-white/7 font-bold text-white">{record.fullname}</td>
+                      <td className={`px-3 py-3 border-b border-white/7 font-bold ${highlightedNames.includes(highlightKey(record)) ? 'text-red-400 bg-red-500/5' : 'text-white'}`}>{record.fullname}</td>
                       <td className="px-3 py-3 border-b border-white/7 text-neutral-300">{record.position || '—'}</td>
                       <td className="px-3 py-3 border-b border-white/7 text-neutral-400 max-w-48 truncate">{getUnit(record)}</td>
                       <td className="px-3 py-3 border-b border-white/7 font-mono" dir="ltr">{record.phone || '—'}</td>

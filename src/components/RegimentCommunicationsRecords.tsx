@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -108,14 +110,25 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
   isDarkMode,
   onShowToast,
 }) => {
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'communications' ? target : null;
   const [records, setRecords] = useState<RegimentCommRecord[]>(readRecords);
   const selection = useExcelSelection(records, (r) => r.id);
 
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<RegimentCommFormState>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -830,7 +843,7 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
                       className="w-10 h-10 rounded-lg object-cover border border-cyan-500/40"
                     />
                     <ImagePreviewButton
-                      src={form.document102DataUrl}
+                      src={form.document102DataUrl} onDelete={() => removeAttachment(form.document102DataUrl!, undefined)}
                       name={form.document102Name || `مستند_102_${form.fullName}`}
                     />
                     <button
@@ -976,7 +989,7 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
                         {record.document102DataUrl ? (
                           <div className="flex items-center gap-1">
                             <ImagePreviewButton
-                              src={record.document102DataUrl}
+                              src={record.document102DataUrl} onDelete={() => removeAttachment(record.document102DataUrl!, record.id)}
                               name={record.document102Name || `مستند_102_${record.fullName}`}
                               className="px-2 py-1 rounded-md border border-cyan-500/40 text-cyan-400 text-[10px] font-bold hover:bg-cyan-500/10 cursor-pointer"
                             >
@@ -1065,7 +1078,7 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
                               </div>
                             </div>
                             <ImagePreviewButton
-                              src={record.document102DataUrl}
+                              src={record.document102DataUrl} onDelete={() => removeAttachment(record.document102DataUrl!, record.id)}
                               name={record.document102Name || `مستند_102_${record.fullName}`}
                             />
                           </div>

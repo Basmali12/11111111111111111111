@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, ChevronDown, ChevronUp, Download, FileDown, FileImage, FileUp, Maximize2, Pencil, Plus, Search, Trash2, WalletCards, X } from 'lucide-react';
@@ -88,14 +90,25 @@ const readExcelCell = (row: Record<string, unknown>, names: string[]) => {
 };
 
 export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, onBack, onShowToast }) => {
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'finance' ? target : null;
   const [records, setRecords] = useState<FinancialRecord[]>(readRecords);
   const selection = useExcelSelection(records, (record) => record.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<FinancialRecord | null>(null);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<FinancialForm>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -349,7 +362,7 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
           <label className="text-[11px] font-bold text-neutral-300">صُرفت لشراء<input value={form.spentForPurchase} onChange={(event) => updateForm('spentForPurchase', event.target.value)} placeholder="اكتب المواد أو الغرض من الشراء" className="w-full mt-1.5 py-2.5 px-3 rounded-xl text-xs border text-right" style={inputStyle} /></label>
           <label className="text-[11px] font-bold text-neutral-300">رقم أمر الصرف<input value={form.paymentOrderNumber} onChange={(event) => updateForm('paymentOrderNumber', event.target.value)} placeholder="رقم أمر الصرف" className="w-full mt-1.5 py-2.5 px-3 rounded-xl text-xs border text-right" style={inputStyle} /></label>
           <label className="text-[11px] font-bold text-neutral-300">تاريخ الصرف<input type="date" value={form.paymentDate} onChange={(event) => updateForm('paymentDate', event.target.value)} className="w-full mt-1.5 py-2.5 px-3 rounded-xl text-xs border text-right" style={inputStyle} /></label>
-          <div className="sm:col-span-2 rounded-xl border p-3" style={{ borderColor: isDarkMode ? '#3e3e3e' : '#cbd5e1' }}><div className="text-[11px] font-bold text-neutral-300 mb-2">صورة أمر الصرف أو الإيصال</div><label className="min-h-20 rounded-xl border border-dashed border-emerald-500/60 flex items-center justify-center gap-3 px-4 py-3 cursor-pointer hover:bg-emerald-500/5"><FileImage className="w-6 h-6 text-emerald-400" /><span className="text-[10px] text-neutral-400">{form.attachmentName || 'اختيار صورة أو PDF'}</span><input type="file" accept="image/*,.pdf,application/pdf" onChange={(event) => selectAttachment(event.target.files?.[0])} className="sr-only" aria-label="اختيار صورة أمر الصرف أو الإيصال" /></label>{form.attachmentDataUrl && isImageAttachment(form) && <div className="mt-2"><ImagePreviewButton src={form.attachmentDataUrl} name={form.attachmentName || 'مرفق السجل المالي'} /></div>}{form.attachmentName && <button type="button" onClick={() => setForm((current) => ({ ...current, attachmentName: '', attachmentType: '', attachmentDataUrl: '' }))} className="mt-2 text-[10px] text-red-400 cursor-pointer">إزالة المرفق</button>}</div>
+          <div className="sm:col-span-2 rounded-xl border p-3" style={{ borderColor: isDarkMode ? '#3e3e3e' : '#cbd5e1' }}><div className="text-[11px] font-bold text-neutral-300 mb-2">صورة أمر الصرف أو الإيصال</div><label className="min-h-20 rounded-xl border border-dashed border-emerald-500/60 flex items-center justify-center gap-3 px-4 py-3 cursor-pointer hover:bg-emerald-500/5"><FileImage className="w-6 h-6 text-emerald-400" /><span className="text-[10px] text-neutral-400">{form.attachmentName || 'اختيار صورة أو PDF'}</span><input type="file" accept="image/*,.pdf,application/pdf" onChange={(event) => selectAttachment(event.target.files?.[0])} className="sr-only" aria-label="اختيار صورة أمر الصرف أو الإيصال" /></label>{form.attachmentDataUrl && <div className="mt-2"><ImagePreviewButton src={form.attachmentDataUrl} onDelete={() => removeAttachment(form.attachmentDataUrl!, undefined)} name={form.attachmentName || 'مرفق السجل المالي'} /></div>}{form.attachmentName && <button type="button" onClick={() => setForm((current) => ({ ...current, attachmentName: '', attachmentType: '', attachmentDataUrl: '' }))} className="mt-2 text-[10px] text-red-400 cursor-pointer">إزالة المرفق</button>}</div>
           <label className="text-[11px] font-bold text-neutral-300 sm:col-span-2">الملاحظات<textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} placeholder="أدخل الملاحظات" rows={4} className="w-full mt-1.5 py-2.5 px-3 rounded-xl text-xs border text-right resize-y" style={inputStyle} /></label>
         </div>
         <div className="flex items-center gap-2 mt-4"><button type="submit" className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 cursor-pointer">{editingId ? 'حفظ التعديل' : 'حفظ السجل'}</button><button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-xs font-bold bg-neutral-700 text-white cursor-pointer">إلغاء</button></div>
@@ -365,7 +378,7 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
               {record.attachmentDataUrl && (isImageAttachment(record) ? (
                 <button type="button" onClick={() => setPreviewAttachment(record)} className="rounded-xl border border-emerald-500/30 p-3 text-[11px] font-bold text-emerald-400 flex items-center justify-center gap-2 cursor-pointer hover:bg-emerald-500/10" aria-label={`عرض صورة ${record.attachmentName}`}><Maximize2 className="w-4 h-4" /> عرض الصورة</button>
               ) : (
-                <a href={record.attachmentDataUrl} download={record.attachmentName} className="rounded-xl border border-emerald-500/30 p-3 text-[11px] font-bold text-emerald-400 flex items-center justify-center gap-2"><Download className="w-4 h-4" /> تنزيل ملف PDF</a>
+                <ImagePreviewButton src={record.attachmentDataUrl} name={record.attachmentName || 'مرفق المالية'} onDelete={() => removeAttachment(record.attachmentDataUrl, record.id)} />
               ))}
               <div className="col-span-2 md:col-span-4 flex flex-wrap items-center gap-2"><button type="button" onClick={() => openEditForm(record)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 flex items-center gap-2 cursor-pointer"><Pencil className="w-4 h-4" /> تعديل</button><button type="button" onClick={() => setPendingDeleteId(record.id)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 flex items-center gap-2 cursor-pointer"><Trash2 className="w-4 h-4" /> حذف</button></div>
             </div>}
@@ -374,44 +387,7 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
         {filteredRecords.length === 0 && <div className="min-h-64 flex flex-col items-center justify-center text-center p-8"><WalletCards className="w-9 h-9 text-emerald-400 mb-3" /><h3 className="text-sm font-bold mb-1">{query ? 'لا توجد نتائج مطابقة' : 'لا توجد حركات مالية حاليًا'}</h3><p className="text-xs text-neutral-400">{query ? 'غيّر بداية الاسم أو رقم الكي كارد.' : 'اضغط على إضافة حركة مالية لإدخال أول سجل.'}</p></div>}
       </div>}
       <ConfirmDialog isOpen={Boolean(pendingDeleteRecord)} isDarkMode={isDarkMode} title="تأكيد حذف السجل المالي" message={pendingDeleteRecord ? `هل تريد حذف سجل «${pendingDeleteRecord.beneficiaryName}» نهائيًا؟` : ''} onConfirm={() => { if (pendingDeleteRecord) deleteRecord(pendingDeleteRecord); }} onCancel={() => setPendingDeleteId(null)} />
-      {createPortal(<AnimatePresence>
-        {previewAttachment && (
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
-            dir="rtl"
-            role="presentation"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setPreviewAttachment(null);
-            }}
-          >
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-label={`معاينة ${previewAttachment.attachmentName}`}
-              className="w-full max-w-5xl max-h-[92vh] rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
-              style={{ backgroundColor: isDarkMode ? '#202020' : '#ffffff', borderColor: isDarkMode ? '#444444' : '#e2e8f0' }}
-              initial={{ opacity: 0, scale: 0.92, y: 24 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-            >
-              <div className="flex items-center justify-between gap-3 p-4 border-b" style={{ borderColor: isDarkMode ? '#3b3b3b' : '#e2e8f0' }}>
-                <div className="min-w-0"><h3 className="text-sm font-bold">معاينة صورة المرفق</h3><p className="text-[10px] text-neutral-400 mt-1 truncate">{previewAttachment.attachmentName}</p></div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <a href={previewAttachment.attachmentDataUrl} download={previewAttachment.attachmentName} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2"><Download className="w-4 h-4" /> تنزيل الصورة</a>
-                  <button type="button" onClick={() => setPreviewAttachment(null)} className="p-2.5 rounded-xl bg-neutral-700 hover:bg-neutral-600 text-white cursor-pointer" aria-label="إغلاق معاينة الصورة"><X className="w-4 h-4" /></button>
-                </div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto p-4 flex items-center justify-center" style={{ backgroundColor: isDarkMode ? '#111111' : '#f8fafc' }}>
-                <img src={previewAttachment.attachmentDataUrl} alt={`مرفق ${previewAttachment.beneficiaryName}`} className="max-w-full max-h-[76vh] object-contain rounded-xl" />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>, document.body)}
+{previewAttachment && <AttachmentPreview src={previewAttachment.attachmentDataUrl} name={previewAttachment.attachmentName || 'مرفق المالية'} onClose={() => setPreviewAttachment(null)} onDelete={() => removeAttachment(previewAttachment.attachmentDataUrl, previewAttachment.id)} />}
     </div>
   );
 };

@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ChevronUp, FileDown, FileUp, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -162,14 +164,25 @@ const WOUNDED_FORM_FIELDS: FormField[] = [
 ];
 
 export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShowToast, onBack }) => {
-  const [activeRegister, setActiveRegister] = useState<RegisterType>('martyrs');
-  const [records, setRecords] = useState<MartyrRecord[]>(() => readRecords(MARTYRS_STORAGE_KEY));
+  const target = useSearchRecordTarget();
+  const searchTarget = target?.category === 'casualties' ? target : null;
+  const [activeRegister, setActiveRegister] = useState<RegisterType>(searchTarget?.record._status === 'جريح' ? 'wounded' : 'martyrs');
+  const [records, setRecords] = useState<MartyrRecord[]>(() => readRecords(searchTarget?.record._status === 'جريح' ? WOUNDED_STORAGE_KEY : MARTYRS_STORAGE_KEY));
   const selection = useExcelSelection(records, (record) => record.id);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchTarget?.record?.fullName || searchTarget?.record?.fighterName || searchTarget?.record?.driverName || '');
   const [showForm, setShowForm] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(registerConfig.storageKey) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(registerConfig.storageKey, JSON.stringify(next));
+    setRecords(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
   const [form, setForm] = useState<MartyrFormState>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const registerConfig = REGISTER_CONFIG[activeRegister];
@@ -656,7 +669,7 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
                 {form.injuryProofDataUrl && (
                   <div className="mt-3 flex items-center gap-3">
                     <img src={form.injuryProofDataUrl} alt="معاينة تأييد الإصابة" className="w-20 h-16 rounded-lg object-cover border border-neutral-600" />
-                    <ImagePreviewButton src={form.injuryProofDataUrl} name={form.injuryProofName || 'تأييد الإصابة'} />
+                    <ImagePreviewButton src={form.injuryProofDataUrl} onDelete={() => removeAttachment(form.injuryProofDataUrl!, undefined)} name={form.injuryProofName || 'تأييد الإصابة'} />
                     <button
                       type="button"
                       onClick={() => setForm((current) => ({ ...current, injuryProofName: '', injuryProofDataUrl: '' }))}
@@ -755,7 +768,11 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
                     <div className="text-[11px] font-bold break-words">{value || '—'}</div>
                   </div>
                 ))}
-                {activeRegister === 'martyrs' && Boolean(record.documents?.length) && <div className="col-span-2 md:col-span-4"><MartyrDocuments documents={record.documents || []} /></div>}
+                {activeRegister === 'martyrs' && Boolean(record.documents?.length) && <div className="col-span-2 md:col-span-4"><MartyrDocuments documents={record.documents || []} onChange={documents => {
+                  const stored = JSON.parse(localStorage.getItem(registerConfig.storageKey) || '[]');
+                  const next = stored.map((item: MartyrRecord) => item.id === record.id ? { ...item, documents } : item);
+                  localStorage.setItem(registerConfig.storageKey, JSON.stringify(next)); setRecords(next);
+                }} /></div>}
                 {activeRegister === 'martyrs' && readChildren(record.children).length > 0 && <div className="col-span-2 md:col-span-4 border border-neutral-600 rounded-xl p-3">
                   <h3 className="text-sm font-bold mb-3">أسماء أبناء الشهداء</h3>
                   {readChildren(record.children).map((child, index) => <div key={index} className="grid grid-cols-2 md:grid-cols-5 gap-3 border-t border-neutral-600 py-3 text-xs">
@@ -769,7 +786,7 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
                   >
                     <div className="text-[9px] text-neutral-500 mb-2">صورة تأييد الإصابة</div>
                     <img src={record.injuryProofDataUrl} alt={`تأييد إصابة ${record.martyrName}`} className="max-h-52 w-full rounded-lg object-contain bg-black/20" />
-                    <div className="mt-2"><ImagePreviewButton src={record.injuryProofDataUrl} name={record.injuryProofName || `تأييد إصابة ${record.martyrName}`} /></div>
+                    <div className="mt-2"><ImagePreviewButton src={record.injuryProofDataUrl} onDelete={() => removeAttachment(record.injuryProofDataUrl!, record.id)} name={record.injuryProofName || `تأييد إصابة ${record.martyrName}`} /></div>
                   </div>
                 )}
                 <div className="col-span-2 md:col-span-4 flex flex-wrap items-center gap-2 pt-1">

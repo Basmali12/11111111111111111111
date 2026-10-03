@@ -1,3 +1,6 @@
+import * as XLSX from 'xlsx';
+import { createSystemBackup, buildSystemWorkbook, systemBackupFilename } from '../systemBackup';
+import { writeCompleteBackup, AUTO_BACKUP_FILENAME } from '../automaticBackup';
 import React, { useState } from 'react';
 import {
   Folder,
@@ -16,8 +19,9 @@ import {
 import {
   isFileSystemAccessSupported,
   requestComputerDirectoryPicker,
-  saveDatabaseDirectlyToDisk,
-  triggerExcelDownload
+  requestBackupFilePicker,
+  setActiveDirectoryHandle,
+
 } from '../fileSystemStorage';
 import type { MilitaryRecord, AppConfig } from '../types';
 
@@ -42,6 +46,8 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'picker' | 'github'>('picker');
   const [isPicking, setIsPicking] = useState<boolean>(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState(false);
   const [customPathInput, setCustomPathInput] = useState<string>(
     config.default_save_path || 'C:\\سجل_المنتسبين'
   );
@@ -50,46 +56,27 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
   if (!isOpen) return null;
 
   // Handle native folder picking from user's computer (C: drive)
-  const handlePickFolder = async () => {
-    setIsPicking(true);
-    const result = await requestComputerDirectoryPicker();
-    setIsPicking(false);
-
-    if (result.success && result.handle) {
-      const folderName = result.name || 'سجل_المنتسبين';
-      const cleanPath = `C:\\${folderName}`;
-      onUpdateConfig({
-        default_save_path: cleanPath,
-      });
-
-      // Instantly save database.xlsx into the selected folder
-      await saveDatabaseDirectlyToDisk(result.handle, records, {
-        ...config,
-        default_save_path: cleanPath,
-      });
-
-      onShowToast(
-        'success',
-        'تم ربط المجلد والحفظ الفوري',
-        `تم ربط المجلد "${folderName}" بنجاح! تم إنشاء وحفظ ملف database.xlsx مباشرة على قرصك، وسيتم التحديث الفوري لأي عملية.`
-      );
-      onClose();
-    } else if (result.error) {
-      onShowToast('warning', 'تنبيه اختيار المجلد', result.error);
-    }
+  const handlePickFolder = async (pickFile = false) => {
+    if (isPicking) return;
+    setIsPicking(true);setSaveError(false);setSaveMessage('اختر مجلد الحفظ من نافذة ويندوز.');
+    try {
+      const result = await (pickFile ? requestBackupFilePicker() : requestComputerDirectoryPicker());
+      if (!result.success || !result.handle) throw new Error(result.error || 'لم يتم اختيار مجلد.');
+      const folderName = result.name || 'المجلد المختار';
+      const date = await writeCompleteBackup(result.handle, records, message=>setSaveMessage(folderName+' — '+message));
+      setActiveDirectoryHandle(result.handle);
+      onUpdateConfig({default_save_path: folderName});
+      setSaveMessage('تم الحفظ والتحقق: '+folderName+(pickFile ? '' : ' / '+AUTO_BACKUP_FILENAME)+' — '+new Date(date).toLocaleString('ar-IQ'));
+      onShowToast('success', 'تم حفظ النسخة والتحقق منها', 'الملف موجود داخل المجلد '+folderName+'، وسيُحدّث تلقائياً.');
+    } catch(error) {
+      const message = error instanceof Error ? error.message : 'تعذر حفظ النسخة.';
+      setSaveError(true);setSaveMessage(message);
+      onShowToast('warning', 'تعذر حفظ النسخة', message);
+    } finally {setIsPicking(false);}
   };
 
   // Handle manual path confirmation
-  const handleConfirmCustomPath = () => {
-    const trimmed = customPathInput.trim() || 'C:\\سجل_المنتسبين';
-    onUpdateConfig({ default_save_path: trimmed });
-    onShowToast(
-      'success',
-      'تم اعتماد مسار الحفظ',
-      `تم تعيين المسار النشط إلى: ${trimmed} — يتم حفظ جميع العمليات تلقائياً.`
-    );
-    onClose();
-  };
+  const handleConfirmCustomPath = () => { void handlePickFolder(); };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-200">
@@ -173,15 +160,17 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
                   الحفظ الفوري المباشر على القرص (بدون بايثون)
                 </p>
                 <p className="text-neutral-300">
-                  عند تحديد المجلد في قرص C:، سيتولى البرنامج إنشاء وحفظ ملف <strong className="text-white">database.xlsx</strong> الحقيقي وتحديثه تلقائياً في كل مرة تضيف، تعدل، أو تحذف فيها منتسباً.
+                  عند تحديد المجلد في قرص C:، سيتولى البرنامج إنشاء وحفظ ملف <strong className="text-white">{AUTO_BACKUP_FILENAME}</strong> الحقيقي وتحديثه تلقائياً عند تغيير أي سجل أو مرفق في جميع الأقسام. اختر المجلد المطلوب من نافذة النظام؛ كتابة المسار وحدها لا تمنح إذن الحفظ.
                 </p>
               </div>
             </div>
 
+            {saveMessage && <div role="status" aria-live="polite" className={`p-3 rounded-xl border text-xs leading-7 ${saveError ? 'bg-red-950/40 border-red-500/40 text-red-200' : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'}`}>{saveMessage}</div>}
+            <button disabled={isPicking} onClick={() => void handlePickFolder(true)} className="px-4 py-3 rounded-xl text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50">اختيار ملف النسخة مباشرة وحفظه</button>
             {/* Main Action Button */}
             <div className="flex flex-col gap-3">
               <button
-                onClick={handlePickFolder}
+                onClick={() => void handlePickFolder()}
                 disabled={isPicking}
                 className="w-full py-4 px-6 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 active:scale-98 transition-all flex items-center justify-center gap-2.5 shadow-lg cursor-pointer"
               >
@@ -199,21 +188,21 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-neutral-700/60"></div>
-              <span className="flex-shrink mx-3 text-neutral-400 text-xs">أو كتابة المسار يدوياً</span>
+              <span className="flex-shrink mx-3 text-neutral-400 text-xs">اختيار مسار مخصص</span>
               <div className="flex-grow border-t border-neutral-700/60"></div>
             </div>
 
             {/* Manual Path Box */}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-neutral-300">
-                المسار المعتمد في جهازك:
+                المسار المطلوب (اختَر المجلد نفسه من النافذة التالية):
               </label>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleConfirmCustomPath}
+                  disabled={isPicking} onClick={handleConfirmCustomPath}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors whitespace-nowrap cursor-pointer"
                 >
-                  تأكيد واعتماد
+                  اختيار المجلد واعتماد
                 </button>
                 <input
                   type="text"
@@ -240,11 +229,11 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
               }}
             >
               <button
-                onClick={() => triggerExcelDownload(records, 'database.xlsx')}
+                onClick={async () => { try { const backup = await createSystemBackup(records); XLSX.writeFile(await buildSystemWorkbook(backup), systemBackupFilename(backup.createdAt), {compression:true}); } catch(error) { onShowToast('warning','تعذر تحميل النسخة',error instanceof Error ? error.message : 'حدث خطأ.'); } }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-800 transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>تنزيل نسخة فورية لملف database.xlsx</span>
+                <span>تحميل نسخة احتياطية شاملة</span>
               </button>
               <div className="flex items-center gap-2 text-neutral-400">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-400" />

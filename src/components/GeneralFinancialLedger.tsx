@@ -1,3 +1,5 @@
+import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
+import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
@@ -37,13 +39,24 @@ interface Props {
 }
 
 export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, onShowToast }) => {
+  const searchTarget = useSearchRecordTarget();
+  const targetEntry = searchTarget?.source === 'السجل المالي العام' ? searchTarget.record : null;
   const [entries, setEntries] = useState<GeneralLedgerEntry[]>(readEntries);
   const selection = useExcelSelection(entries, (entry) => entry.id);
-  const [form, setForm] = useState<LedgerForm>(emptyForm);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const removeAttachment = (src: string, id?: string) => {
+    if (!id) { setForm(current => withoutAttachment(current, src)); return; }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const list = stored;
+    const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setEntries(next);
+    if (editingId === id) setForm(current => withoutAttachment(current, src));
+  };
+  const [form, setForm] = useState<LedgerForm>(targetEntry || emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(targetEntry?.id || null);
+  const [showForm, setShowForm] = useState(!!targetEntry);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [previewImage, setPreviewImage] = useState<{ name: string; dataUrl: string } | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ name: string; dataUrl: string; recordId?: string } | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const rows = useMemo(() => calculateLedger(entries), [entries]);
   const nextSequence = Math.max(0, ...entries.map((entry) => entry.sequence)) + 1;
@@ -186,18 +199,12 @@ export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, on
     </form>}
     <div className="rounded-2xl border overflow-x-auto" style={panelStyle}>
       <table className="w-full min-w-[1080px] text-right text-xs"><thead className="border-b border-emerald-500/20"><tr>{selection.enabled && <th className="p-3">تحديد</th>}{['تسلسل', 'اسم المستفيد', 'الفوج أو القسم', 'المبلغ الوارد', 'المبلغ المصروف', 'التاريخ', 'المبلغ المتبقي', 'الملاحظات', 'مستند الصرف', 'إجراءات'].map((header) => <th key={header} className="p-3 whitespace-nowrap">{header}</th>)}</tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-emerald-500/15">{selection.enabled && <td className="p-3"><ExcelRowCheckbox checked={selection.selectedIds.has(row.id)} label={row.beneficiaryName || `السجل ${row.sequence}`} onChange={() => selection.toggle(row.id)} /></td>}<td className="p-3">{row.sequence}</td><td className="p-3 min-w-32">{row.beneficiaryName || '—'}</td><td className="p-3 min-w-32">{row.unitOrDepartment || '—'}</td><td className="p-3 text-emerald-400">{formatMoney(parseMoney(row.incoming) ?? 0)}</td><td className="p-3 text-red-400">{formatMoney(parseMoney(row.outgoing) ?? 0)}</td><td className="p-3 whitespace-nowrap">{row.date}</td><td className="p-3 font-bold text-cyan-400">{formatMoney(row.balance)}</td><td className="p-3 max-w-48 break-words">{row.notes || '—'}</td><td className="p-3">{row.attachmentDataUrl ? <button type="button" onClick={() => setPreviewImage({ name: row.attachmentName, dataUrl: row.attachmentDataUrl })} className="text-sky-400 underline cursor-pointer">عرض الصورة</button> : '—'}</td><td className="p-3"><div className="flex gap-2"><button type="button" onClick={() => { setEditingId(row.id); setForm({ beneficiaryName: row.beneficiaryName, unitOrDepartment: row.unitOrDepartment, incoming: row.incoming, outgoing: row.outgoing, date: row.date, notes: row.notes, attachmentName: row.attachmentName, attachmentDataUrl: row.attachmentDataUrl }); setShowForm(true); }} aria-label={`تعديل السجل ${row.sequence}`} className="p-2 rounded-lg border border-sky-500/40 text-sky-400 cursor-pointer"><Pencil className="w-4 h-4" /></button><button type="button" onClick={() => setPendingDeleteId(row.id)} aria-label={`حذف السجل ${row.sequence}`} className="p-2 rounded-lg border border-red-500/40 text-red-400 cursor-pointer"><Trash2 className="w-4 h-4" /></button></div></td></tr>)}</tbody>
+        <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-emerald-500/15">{selection.enabled && <td className="p-3"><ExcelRowCheckbox checked={selection.selectedIds.has(row.id)} label={row.beneficiaryName || `السجل ${row.sequence}`} onChange={() => selection.toggle(row.id)} /></td>}<td className="p-3">{row.sequence}</td><td className="p-3 min-w-32">{row.beneficiaryName || '—'}</td><td className="p-3 min-w-32">{row.unitOrDepartment || '—'}</td><td className="p-3 text-emerald-400">{formatMoney(parseMoney(row.incoming) ?? 0)}</td><td className="p-3 text-red-400">{formatMoney(parseMoney(row.outgoing) ?? 0)}</td><td className="p-3 whitespace-nowrap">{row.date}</td><td className="p-3 font-bold text-cyan-400">{formatMoney(row.balance)}</td><td className="p-3 max-w-48 break-words">{row.notes || '—'}</td><td className="p-3">{row.attachmentDataUrl ? <button type="button" onClick={() => setPreviewImage({ name: row.attachmentName, dataUrl: row.attachmentDataUrl, recordId: row.id })} className="text-sky-400 underline cursor-pointer">عرض الصورة</button> : '—'}</td><td className="p-3"><div className="flex gap-2"><button type="button" onClick={() => { setEditingId(row.id); setForm({ beneficiaryName: row.beneficiaryName, unitOrDepartment: row.unitOrDepartment, incoming: row.incoming, outgoing: row.outgoing, date: row.date, notes: row.notes, attachmentName: row.attachmentName, attachmentDataUrl: row.attachmentDataUrl }); setShowForm(true); }} aria-label={`تعديل السجل ${row.sequence}`} className="p-2 rounded-lg border border-sky-500/40 text-sky-400 cursor-pointer"><Pencil className="w-4 h-4" /></button><button type="button" onClick={() => setPendingDeleteId(row.id)} aria-label={`حذف السجل ${row.sequence}`} className="p-2 rounded-lg border border-red-500/40 text-red-400 cursor-pointer"><Trash2 className="w-4 h-4" /></button></div></td></tr>)}</tbody>
       </table>
       {!rows.length && <p className="p-12 text-center text-neutral-400 text-sm">لا توجد سجلات بعد. اضغط «إضافة سجل» لإدخال الوارد الأول.</p>}
     </div>
     <ConfirmDialog isOpen={pendingDeleteId !== null} isDarkMode={isDarkMode} title="تأكيد حذف السجل" message="هل تريد حذف هذه الحركة المالية؟ سيُعاد حساب الأرصدة التالية." onConfirm={remove} onCancel={() => setPendingDeleteId(null)} />
-    {previewImage && createPortal(
-      <div className="fixed inset-0 z-[110] bg-black/85 backdrop-blur-sm p-4 flex items-center justify-center" role="presentation" dir="rtl" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewImage(null); }}>
-        <div role="dialog" aria-modal="true" aria-label={`معاينة ${previewImage.name || 'مستند الصرف'}`} className="w-full max-w-5xl max-h-[92vh] rounded-2xl border border-emerald-500/30 bg-[#14211e] shadow-2xl flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between gap-3 p-3 border-b border-emerald-500/20"><strong className="text-sm truncate">{previewImage.name || 'مستند الصرف'}</strong><div className="flex items-center gap-2"><a href={previewImage.dataUrl} download={previewImage.name || 'مستند_الصرف.png'} className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs flex items-center gap-1"><Download className="w-4 h-4" /> تنزيل</a><button type="button" onClick={() => setPreviewImage(null)} aria-label="إغلاق معاينة الصورة" className="p-2 rounded-lg border border-neutral-500 text-white cursor-pointer"><X className="w-4 h-4" /></button></div></div>
-          <div className="min-h-0 overflow-auto flex items-center justify-center p-4"><img src={previewImage.dataUrl} alt={previewImage.name || 'مستند الصرف'} className="max-w-full max-h-[75vh] object-contain" /></div>
-        </div>
-      </div>, document.body,
-    )}
+    {previewImage && <AttachmentPreview src={previewImage.dataUrl} name={previewImage.name || 'مستند الصرف'} onClose={() => setPreviewImage(null)} onDelete={() => removeAttachment(previewImage.dataUrl, previewImage.recordId)} />}
+
   </div>;
 };
