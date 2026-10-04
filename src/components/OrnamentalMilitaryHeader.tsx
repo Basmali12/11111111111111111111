@@ -5,7 +5,7 @@ const IraqiEagleLogo: React.FC = () => (
   <img
     src={iraqLogo}
     alt="شعار جمهورية العراق"
-    className="w-[76px] h-[88px] sm:w-[84px] sm:h-[96px] object-contain shrink-0"
+    className="header-eagle-motion w-[76px] h-[88px] sm:w-[84px] sm:h-[96px] object-contain shrink-0"
     draggable={false}
   />
 );

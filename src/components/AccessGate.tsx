@@ -41,7 +41,7 @@ export function AccessGate({children}:{children:ReactNode}) {
     <blockquote className="access-motto"><span className="access-motto-divider" aria-hidden="true">✦</span><span>وفاءٌ لرجالنا…</span><strong>وأمانةٌ في حفظ سجلاتهم.</strong></blockquote>
    </aside>
    <div className="access-form-panel">
-    <div className="access-eyebrow"><ShieldCheck size={16}/> منظومة السجلات العسكرية</div>
+    <div className="access-eyebrow"><ShieldCheck size={16}/> اللواء - 22 - بنك المعلومات</div>
     <motion.div className="access-lock" animate={reduced?{}:{boxShadow:['0 0 0 0 #19b89010','0 0 0 14px #19b89000','0 0 0 0 #19b89010']}} transition={{duration:3,repeat:Infinity}}><LockKeyhole size={28}/></motion.div>
     <h1>{activated?'مرحباً بعودتك':'تفعيل النظام'}</h1>
     <p className="access-description">{activated?'أدخل رمز الدخول للوصول إلى سجلات النظام.':'أكمل التفعيل لبدء استخدام النظام.'}</p>

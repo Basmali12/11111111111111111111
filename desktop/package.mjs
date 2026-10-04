@@ -1,0 +1,14 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {packager} from '@electron/packager';
+const root=process.cwd(),stage=path.join(root,'desktop-stage');
+await fs.mkdir(stage,{recursive:true});
+await fs.cp(path.join(root,'dist'),path.join(stage,'web'),{recursive:true});
+for(const name of ['main.cjs','preload.cjs'])await fs.copyFile(path.join(root,'desktop',name),path.join(stage,name));
+await fs.writeFile(path.join(stage,'package.json'),JSON.stringify({name:'bank-information-22',version:'4.3.1',main:'main.cjs',productName:'اللواء - 22 - بنك المعلومات'}));
+const png=await fs.readFile(path.join(root,'public','pwa-512x512.png'));
+const header=Buffer.alloc(22);header.writeUInt16LE(1,2);header.writeUInt16LE(1,4);header.writeUInt16LE(1,10);header.writeUInt16LE(32,12);header.writeUInt32LE(png.length,14);header.writeUInt32LE(22,18);
+const icon=path.join(stage,'app.ico');await fs.writeFile(icon,Buffer.concat([header,png]));
+const electronVersion=JSON.parse(await fs.readFile(path.join(root,'node_modules','electron','package.json'),'utf8')).version;
+const output=await packager({dir:stage,out:path.join(root,'desktop-release'),name:'BankInformation22',executableName:'BankInformation22',platform:'win32',arch:'x64',electronVersion,icon,asar:true,overwrite:true,win32metadata:{CompanyName:'اللواء 22',ProductName:'اللواء - 22 - بنك المعلومات',FileDescription:'بنك المعلومات — برنامج مستقل دون إنترنت'}});
+console.log('PORTABLE_OUTPUT='+output[0]);

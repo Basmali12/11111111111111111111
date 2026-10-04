@@ -27,6 +27,7 @@ import {
 import * as XLSX from 'xlsx';
 import type { MilitaryRecord } from '../types';
 import { normalizeArabic } from '../mockData';
+import { collectPdfSearchCards, downloadSearchPdf } from '../searchPdfExport';
 
 interface GlobalUnifiedSearchProps {
   records: MilitaryRecord[];
@@ -127,9 +128,11 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const navigation = React.useContext(SearchRecordNavigation);
   const [selectedResults, setSelectedResults] = useState<Set<any>>(new Set());
+  const [pdfRequest, setPdfRequest] = useState<'all' | 'selected' | null>(null);
+  const [pdfError, setPdfError] = useState('');
   useEffect(() => { setSelectedResults(new Set()); }, [searchTerm]);
   const selectResult = (record: any) => (
-    <label className="flex items-center gap-2 text-xs text-violet-300 mb-2 cursor-pointer">
+    <label data-pdf-select={selectedResults.has(record) ? 'selected' : 'unselected'} className="flex items-center gap-2 text-xs text-violet-300 mb-2 cursor-pointer">
       <input type="checkbox" aria-label="تحديد السجل" checked={selectedResults.has(record)} onChange={() => setSelectedResults(previous => {
         const next = new Set(previous);
         if (next.has(record)) next.delete(record); else next.add(record);
@@ -470,10 +473,20 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
     XLSX.writeFile(wb, fileName);
   };
 
-  // Print as PDF using print styles
-  const handlePrintPDF = () => {
-    window.print();
-  };
+  // Export an independent, paginated report, never the fixed modal itself.
+  useEffect(() => {
+    if (!pdfRequest) return;
+    const root = document.getElementById('printable-global-dossier');
+    if (!root) { setPdfRequest(null); return; }
+    const cards = collectPdfSearchCards(root, pdfRequest === 'selected');
+    downloadSearchPdf(cards, searchTerm, pdfRequest === 'selected')
+      .catch(error => {
+        console.error('Search PDF export failed', error);
+        setPdfError(`تعذر تنزيل PDF: ${error instanceof Error ? error.message : 'حاول مرة أخرى.'}`);
+      })
+      .finally(() => setPdfRequest(null));
+  }, [pdfRequest]);
+  const handlePrintPDF = () => { setPdfError(''); setPdfRequest('all'); };
 
   return (
     <>
@@ -587,18 +600,23 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                 {/* Action Buttons: Download PDF and Download Excel */}
                 <div className="flex flex-wrap items-center gap-2.5 print:hidden relative z-50 shrink-0">
                   <button type="button" onClick={exportSelected} disabled={!selectedResults.size} className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer">
-                    <Download className="w-4 h-4" /> تحميل المحدد ({selectedResults.size})
+                    <Download className="w-4 h-4" /> تحميل المحدد Excel ({selectedResults.size})
+                  </button>
+                  <button type="button" disabled={!selectedResults.size || !!pdfRequest} onClick={() => {setPdfError(''); setPdfRequest('selected');}} className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer">
+                    <FileDown className="w-4 h-4" /> تحميل المحدد PDF ({selectedResults.size})
                   </button>
                   {/* زر تحميل بي دي اف */}
                   <button
                     type="button"
                     onClick={handlePrintPDF}
+                    disabled={!!pdfRequest || !searchResults.totalMatches}
                     className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 shadow-lg shadow-red-600/30 flex items-center gap-2 cursor-pointer transition-all active:scale-95 relative z-10"
-                    title="تحميل وطباعة الملف الشامل كملف PDF"
+                    title="تنزيل تقرير جميع نتائج البحث مباشرة إلى الحاسبة"
                   >
                     <FileDown className="w-4 h-4" />
-                    <span>تحميل PDF</span>
+                    <span>{pdfRequest ? 'جارٍ تجهيز PDF…' : 'تحميل PDF'}</span>
                   </button>
+                  {pdfError && <span role="alert" className="text-xs text-red-300">{pdfError}</span>}
 
                   {/* زر تحميل ملف اكسل */}
                   <button
@@ -742,7 +760,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
               {/* Official Printable Header for PDF */}
               <div className="hidden print:block border-b-2 border-emerald-600 pb-4 mb-6 text-center">
                 <h1 className="text-xl font-black text-black">جمهورية العراق - هيئة الحشد الشعبي</h1>
-                <h2 className="text-base font-bold text-neutral-800">قيادة عمليات اللواء الثاني والعشرون - شعبة الإدارة ونظم المعلومات</h2>
+                <h2 className="text-base font-bold text-neutral-800">اللواء الثاني والعشرون - شعبة الإدارة ونظام المعلومات</h2>
                 <div className="mt-2 text-xs text-neutral-600 flex justify-between px-4">
                   <span>استمارة الاستعلام الشامل الموحد</span>
                   <span>المصطلح المبحوث عنه: {searchTerm}</span>
@@ -760,7 +778,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                 </div>
               ) : (
                 <>
-                  {(activeTab === 'all' || activeTab === 'additional') && searchResults.additionalMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'additional') && searchResults.additionalMatches.length > 0 && (
                     <section className="space-y-3">
                       <h3 className="text-emerald-300 font-bold">كتب الملفات والغيابات والحضور والسجل المالي ({searchResults.additionalMatches.length})</h3>
                       {searchResults.additionalMatches.map(({ source, record }, index) => (
@@ -774,7 +792,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                     </section>
                   )}
                   {/* 1. قسم الرئيسية (Main Personnel Records) */}
-                  {(activeTab === 'all' || activeTab === 'main') && searchResults.mainMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'main') && searchResults.mainMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm border-b pb-1.5 border-emerald-500/30">
                         <User className="w-4 h-4" />
@@ -853,7 +871,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   )}
 
                   {/* 2. قسم الملفات والأضابير (Folders) */}
-                  {(activeTab === 'all' || activeTab === 'folders') && searchResults.folderMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'folders') && searchResults.folderMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm border-b pb-1.5 border-cyan-500/30">
                         <FileText className="w-4 h-4" />
@@ -920,7 +938,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   )}
 
                   {/* 3. قسم التسليحات والأسلحة (Weapons) */}
-                  {(activeTab === 'all' || activeTab === 'weapons') && searchResults.weaponMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'weapons') && searchResults.weaponMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-amber-400 font-bold text-sm border-b pb-1.5 border-amber-500/30">
                         <Swords className="w-4 h-4" />
@@ -983,7 +1001,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   )}
 
                   {/* 4. قسم الآليات والنقل (Vehicles) */}
-                  {(activeTab === 'all' || activeTab === 'vehicles') && searchResults.vehicleMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'vehicles') && searchResults.vehicleMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-blue-400 font-bold text-sm border-b pb-1.5 border-blue-500/30">
                         <Car className="w-4 h-4" />
@@ -1030,7 +1048,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   )}
 
                   {/* 5. قسم الاتصالات (Communications) */}
-                  {(activeTab === 'all' || activeTab === 'comm') && searchResults.commMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'comm') && searchResults.commMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm border-b pb-1.5 border-cyan-500/30">
                         <Radio className="w-4 h-4" />
@@ -1090,7 +1108,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   )}
 
                   {/* 6. قسم الشهداء والجرحى (Casualties) */}
-                  {(activeTab === 'all' || activeTab === 'casualties') && searchResults.casualtyMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'casualties') && searchResults.casualtyMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-red-400 font-bold text-sm border-b pb-1.5 border-red-500/30">
                         <HeartPulse className="w-4 h-4" />
@@ -1125,7 +1143,7 @@ export const GlobalUnifiedSearch: React.FC<GlobalUnifiedSearchProps> = ({
                   )}
 
                   {/* 7. قسم المالية (Finance) */}
-                  {(activeTab === 'all' || activeTab === 'finance') && searchResults.financeMatches.length > 0 && (
+                  {(pdfRequest !== null || activeTab === 'all' || activeTab === 'finance') && searchResults.financeMatches.length > 0 && (
                     <section className="space-y-3">
                       <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm border-b pb-1.5 border-emerald-500/30">
                         <Wallet className="w-4 h-4" />

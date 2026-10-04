@@ -30,7 +30,7 @@ import { DesktopWindow } from './components/DesktopWindow';
 import { ToastContainer } from './components/Toast';
 import { StorageLocationModal } from './components/StorageLocationModal';
 import { INITIAL_MILITARY_RECORDS } from './mockData';
-import { usePwaInstall } from './usePwaInstall';
+
 import {
   MilitaryCamoBackground,
   CamoPatternType,
@@ -144,7 +144,7 @@ function SystemApp() {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [isAppStorageModalOpen, setIsAppStorageModalOpen] = useState<boolean>(false);
   const [appRecords] = useState(INITIAL_MILITARY_RECORDS);
-  const { isInstallable, isInstalled, promptInstall } = usePwaInstall();
+
 
   // Sync config to localStorage
   const updateConfig = (newProps: Partial<AppConfig>) => {
@@ -318,6 +318,14 @@ function SystemApp() {
                 <span>الأمن</span>
               </button>
               <button
+                onClick={() => setActiveSimulatorView('intelligence')}
+                className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeSimulatorView === 'intelligence' ? 'nav-tab-active text-white' : 'text-neutral-400 hover:text-white hover:bg-emerald-950/35'}`}
+                title="فتح شعبة الاستخبارات"
+              >
+                <LockKeyhole className="w-4 h-4" />
+                <span>الاستخبارات</span>
+              </button>
+              <button
                 onClick={() => setActiveSimulatorView('attendance')}
                 className={`nav-tab shrink-0 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   activeSimulatorView === 'attendance'
@@ -345,21 +353,6 @@ function SystemApp() {
           </div>
         </div>
       </header>
-            {!isInstalled && (
-              <button
-                onClick={async () => {
-                  if (isInstallable) {
-                    await promptInstall();
-                  } else {
-                    window.alert('لتثبيت التطبيق في Microsoft Edge:\nافتح قائمة ⋯ ثم المزيد من الأدوات ← التطبيقات ← تثبيت هذا الموقع كتطبيق (أو أيقونة التثبيت بجانب العنوان).\nبعد التثبيت اختر إنشاء اختصار على سطح المكتب.\nإذا كان مثبتًا مسبقًا افتح edge://apps لإدارته.');
-                  }
-                }}
-                className="fixed bottom-5 left-5 z-50 flex items-center gap-2 px-4 py-3 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-600 border border-emerald-300/50 rounded-xl transition-colors shadow-lg whitespace-nowrap cursor-pointer"
-                title="تثبيت التطبيق كبرنامج مستقل لسطح المكتب يعمل أوفلاين بدون إنترنت وبدون بايثون"
-              >
-                <span>💻 تثبيت التطبيق على سطح المكتب</span>
-              </button>
-            )}
 
       {/* Main Content Viewport: Complete Standalone System */}
       <main className="relative z-10 flex-1 max-w-[1600px] w-full mx-auto p-3 lg:p-4">
@@ -381,7 +374,7 @@ function SystemApp() {
       <footer className="relative z-10 border-t border-emerald-500/15 bg-[#05100d]/92 py-2 text-[10px] text-neutral-500 font-sans">
         <div className="max-w-[1600px] mx-auto px-4 lg:px-6 flex flex-wrap items-center justify-between gap-3" dir="rtl">
           <div className="flex items-center gap-2 text-emerald-300"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /><span>النظام يعمل بشكل طبيعي</span><span className="text-neutral-600">·</span><span className="text-neutral-400">قاعدة البيانات متصلة</span></div>
-          <p>جميع الحقوق محفوظة — منظومة السجلات العسكرية</p>
+          <p>جميع الحقوق محفوظة — اللواء - 22 - بنك المعلومات</p>
           <span className="font-mono text-neutral-400">v4.3.0</span>
         </div>
       </footer>

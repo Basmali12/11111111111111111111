@@ -489,7 +489,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   const [quickIndexFilter, setQuickIndexFilter] = useState<string | null>(null);
 
   const filteredRegimentFiles = useMemo(() => {
-    const files = REGIMENT_MILITARY_FILES.filter((file) => !['file_vehicles', 'file_security'].includes(file.id));
+    const files = REGIMENT_MILITARY_FILES.filter((file) => !['file_vehicles', 'file_security', 'file_intel'].includes(file.id));
     if (!fileSearchQuery.trim()) return files;
     const q = normalizeMilitarySearchText(fileSearchQuery);
     const qDigits = convertArabicIndicDigits(fileSearchQuery.trim());
@@ -1184,7 +1184,8 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     setSearchTarget(target);
     if (target.category === 'folders' || (target.category === 'additional' && target.source?.startsWith('كتب الملفات'))) {
       setOpenedFileId(target.folderId || target.record.folderId);
-      setActiveView((target.folderId || target.record.folderId) === 'file_security' ? 'security' : 'blank');
+      const folderId = target.folderId || target.record.folderId;
+      setActiveView(folderId === 'file_security' ? 'security' : folderId === 'file_intel' ? 'intelligence' : 'blank');
 
     } else {
       const view = target.category === 'additional' ? (target.source === 'السجل المالي العام' ? 'finance' : 'attendance') : target.category;
@@ -1545,6 +1546,17 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                 folderId="file_security"
                 folderName="الأمن"
                 folderLabel="شعبة الأمن"
+                isDarkMode={isDarkMode}
+                onBack={() => setActiveView('home')}
+                onShowToast={onShowToast}
+              />
+            )}
+
+            {activeView === 'intelligence' && (
+              <FolderPersonnelRecords
+                folderId="file_intel"
+                folderName="الاستخبارات"
+                folderLabel="شعبة الاستخبارات"
                 isDarkMode={isDarkMode}
                 onBack={() => setActiveView('home')}
                 onShowToast={onShowToast}

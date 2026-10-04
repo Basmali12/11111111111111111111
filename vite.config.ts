@@ -11,11 +11,11 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon.png'],
+        includeAssets: ['apple-touch-icon.png', 'favicon.png', 'app-logo.jpg'],
         manifest: {
           id: './',
-          name: 'نظام إدارة المنتسبين وقواعد البيانات',
-          short_name: 'إدارة المنتسبين',
+          name: 'اللواء - 22 - بنك المعلومات',
+          short_name: 'اللواء - 22 - بنك المعلومات',
           description: 'تطبيق سطح مكتب متطور أوفلاين لحفظ وإدارة سجلات المنتسبين مباشرة في قرص C بدون تعقيد',
           theme_color: '#09090b',
           background_color: '#09090b',

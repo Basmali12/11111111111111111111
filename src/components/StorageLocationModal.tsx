@@ -81,7 +81,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-200">
       <div
-        className="w-full max-w-2xl rounded-2xl shadow-2xl border overflow-hidden font-sans flex flex-col text-right relative"
+        className="w-full max-w-2xl max-h-[calc(100dvh-2rem)] rounded-2xl shadow-2xl border overflow-hidden font-sans flex flex-col text-right relative"
         style={{
           backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
           borderColor: isDarkMode ? '#383838' : '#e2e8f0',
@@ -90,7 +90,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
       >
         {/* Header */}
         <div
-          className="px-6 py-4 border-b flex items-center justify-between"
+          className="px-4 sm:px-6 py-4 border-b flex items-center justify-between gap-3 shrink-0"
           style={{
             backgroundColor: isDarkMode ? '#252525' : '#f8fafc',
             borderColor: isDarkMode ? '#333333' : '#e2e8f0',
@@ -115,7 +115,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 
         {/* Tab switcher */}
         <div
-          className="px-6 pt-3 border-b flex items-center gap-2"
+          className="px-4 sm:px-6 pt-3 border-b flex flex-wrap items-center gap-2 shrink-0"
           style={{ borderColor: isDarkMode ? '#2d2d2d' : '#e5e7eb' }}
         >
           <button
@@ -144,7 +144,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 
         {/* Tab 1: Direct Disk Picker */}
         {activeTab === 'picker' && (
-          <div className="p-6 flex flex-col gap-5 max-h-[70vh] overflow-y-auto">
+          <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto space-y-5">
             {/* Status Card */}
             <div
               className="p-4 rounded-xl border flex items-start gap-3 text-xs leading-relaxed"
@@ -166,7 +166,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
             </div>
 
             {saveMessage && <div role="status" aria-live="polite" className={`p-3 rounded-xl border text-xs leading-7 ${saveError ? 'bg-red-950/40 border-red-500/40 text-red-200' : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'}`}>{saveMessage}</div>}
-            <button disabled={isPicking} onClick={() => void handlePickFolder(true)} className="px-4 py-3 rounded-xl text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50">اختيار ملف النسخة مباشرة وحفظه</button>
+            <button disabled={isPicking} onClick={() => void handlePickFolder(true)} className="w-full min-h-14 px-4 py-3 rounded-xl text-sm leading-6 font-bold text-white bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50">اختيار ملف النسخة مباشرة وحفظه</button>
             {/* Main Action Button */}
             <div className="flex flex-col gap-3">
               <button
@@ -197,7 +197,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
               <label className="text-xs font-semibold text-neutral-300">
                 المسار المطلوب (اختَر المجلد نفسه من النافذة التالية):
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch gap-3">
                 <button
                   disabled={isPicking} onClick={handleConfirmCustomPath}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors whitespace-nowrap cursor-pointer"
@@ -222,7 +222,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 
             {/* Quick Actions Footer */}
             <div
-              className="p-3.5 rounded-xl border flex items-center justify-between text-xs"
+              className="p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs"
               style={{
                 backgroundColor: isDarkMode ? '#242424' : '#f1f5f9',
                 borderColor: isDarkMode ? '#383838' : '#e2e8f0',
@@ -245,7 +245,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 
         {/* Tab 2: GitHub Pages & Offline Guide */}
         {activeTab === 'github' && (
-          <div className="p-6 flex flex-col gap-4 text-xs leading-relaxed max-h-[70vh] overflow-y-auto">
+          <div className="p-4 sm:p-6 flex-1 min-h-0 space-y-4 text-xs leading-relaxed overflow-y-auto">
             <div
               className="p-3.5 rounded-xl border flex items-start gap-2.5"
               style={{

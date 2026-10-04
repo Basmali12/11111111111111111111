@@ -25,7 +25,6 @@ import { ExcelRowCheckbox, SelectedExcelButton, useExcelSelection } from './Exce
 import { RegimentCommunicationsRecords } from './RegimentCommunicationsRecords';
 
 const GENERAL_STORAGE_KEY = 'military_communications_general_v2';
-const REGIMENT_STORAGE_KEY = 'military_communications_regiment_v2';
 
 export interface CommunicationRecord {
   id: string;
@@ -115,28 +114,16 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
     readStorageRecords(GENERAL_STORAGE_KEY)
   );
 
-  // Regiment records state
-  const [regimentRecords, setRegimentRecords] = useState<CommunicationRecord[]>(() =>
-    readStorageRecords(REGIMENT_STORAGE_KEY)
-  );
-
-  const currentRecords = activeTab === 'general' ? generalRecords : regimentRecords;
-  const currentStorageKey = activeTab === 'general' ? GENERAL_STORAGE_KEY : REGIMENT_STORAGE_KEY;
+  // RegimentCommunicationsRecords owns its separate schema and storage.
+  // These calculations and actions belong exclusively to general records.
+  const currentRecords = generalRecords;
 
   const setCurrentRecords = (updater: (prev: CommunicationRecord[]) => CommunicationRecord[]) => {
-    if (activeTab === 'general') {
-      setGeneralRecords((prev) => {
-        const next = updater(prev);
-        localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-    } else {
-      setRegimentRecords((prev) => {
-        const next = updater(prev);
-        localStorage.setItem(REGIMENT_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-    }
+    setGeneralRecords((prev) => {
+      const next = updater(prev);
+      localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   };
 
   const selection = useExcelSelection(currentRecords, (r) => r.id);
