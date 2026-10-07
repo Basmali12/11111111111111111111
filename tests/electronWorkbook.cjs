@@ -9,6 +9,7 @@ app.whenReady().then(async()=>{
  const diskPath=name=>{if(path.basename(name)!==name)throw new Error('Invalid file');return path.join(diskRoot,name);};
  ipcMain.handle('workbook:write',(_event,name,bytes)=>fs.writeFile(diskPath(name),Buffer.from(bytes)));
  ipcMain.handle('workbook:read',async(_event,name)=>Array.from(await fs.readFile(diskPath(name))));
+ ipcMain.handle('workbook:user-import',async()=>process.env.FIGHTER_IMPORT_FILE?Array.from(await fs.readFile(process.env.FIGHTER_IMPORT_FILE)):null);
  protocol.handle('bank',request=>net.fetch(pathToFileURL(path.join(root,new URL(request.url).pathname)).href));
  const win=new BrowserWindow({show:false,webPreferences:{preload:path.join(__dirname,'workbookPreload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
  await win.loadURL('bank://system/tests/workbook-performance.html');

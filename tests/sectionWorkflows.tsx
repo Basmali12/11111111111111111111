@@ -7,6 +7,27 @@ import {getSectionValue,setSectionValue} from '../src/sectionStorage';
 const waitFor=async(check:()=>boolean)=>{for(let i=0;i<100;i++){if(check())return;await new Promise(resolve=>setTimeout(resolve,30));}throw new Error('Workflow timeout: '+document.body.textContent?.slice(-1800));};
 export async function verifySectionWorkflows(){
  const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const userBytes=await (window as any).workbookDisk.userImport();
+ let userImport:{records:number;images:number}|undefined;
+ if(userBytes){
+  await setSectionValue('military_fighter_records_v1','[]');
+  const messages:string[]=[];
+  root.render(<FighterRecords key="user-import" isDarkMode onBack={()=>{}} onShowToast={(_type,title,message)=>messages.push(title+' '+message)}/>);
+  await waitFor(()=>!!host.querySelector('input[type="file"][accept*="xlsx"]'));
+  const input=host.querySelector('input[type="file"][accept*="xlsx"]') as HTMLInputElement;
+  const transfer=new DataTransfer();transfer.items.add(new File([new Uint8Array(userBytes)],'fighters.xlsx'));
+  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+  for(let i=0;i<1000&&!messages.length;i++)await new Promise(resolve=>setTimeout(resolve,30));
+  if(!messages.some(message=>message.includes('تم رفع ملف المقاتلين')))throw new Error('Actual workbook import: '+messages.join(';'));
+  const saved=JSON.parse(getSectionValue('military_fighter_records_v1')!);
+  userImport={records:saved.length,images:saved.filter((record:any)=>record.imageDataUrl).length};
+  const before=getSectionValue('military_fighter_records_v1');
+  const unsupported=XLSX.utils.book_new();XLSX.utils.book_append_sheet(unsupported,XLSX.utils.json_to_sheet([{unrelated:'value'}]),'غير مطابق');
+  const invalidTransfer=new DataTransfer();invalidTransfer.items.add(new File([XLSX.write(unsupported,{type:'array',bookType:'xlsx'})],'unsupported.xlsx'));
+  input.files=invalidTransfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+  for(let i=0;i<1000&&messages.length<2;i++)await new Promise(resolve=>setTimeout(resolve,30));
+  if(messages.length<2||!messages[1].includes('لم يتم التعرف على عمود')||getSectionValue('military_fighter_records_v1')!==before)throw new Error('Unsupported Excel changed existing records');
+ }
  const seed=Array.from({length:5},(_,i)=>({id:String(i+1),sequence:String(i+1),fighterName:`مقاتل ${i+1}`,weaponType:'سلاح',weaponNumber:String(100+i),imageDataUrl:'',imageName:'',magazinesCount:'2',ammunition:'30',notes:'',createdAt:new Date().toISOString()}));
  await setSectionValue('military_fighter_records_v1',JSON.stringify(seed));
  root.render(<FighterRecords isDarkMode onBack={()=>{}} onShowToast={()=>{}}/>);
@@ -14,11 +35,11 @@ export async function verifySectionWorkflows(){
  (host.querySelector('[aria-label="فتح تفاصيل المقاتل مقاتل 4"]') as HTMLButtonElement).click();
  await waitFor(()=>Array.from(host.querySelectorAll('button')).some(button=>button.textContent?.trim()==='حذف'));
  Array.from(host.querySelectorAll('button')).find(button=>button.textContent?.trim()==='حذف')!.click();
- await waitFor(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent?.includes('نعم، تفريغ السجل')));
- Array.from(document.querySelectorAll('button')).find(button=>button.textContent?.includes('نعم، تفريغ السجل'))!.click();
- await waitFor(()=>JSON.parse(getSectionValue('military_fighter_records_v1')!)[3].fighterName==='');
+ await waitFor(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent?.includes('نعم، حذف نهائي')));
+ Array.from(document.querySelectorAll('button')).find(button=>button.textContent?.includes('نعم، حذف نهائي'))!.click();
+ await waitFor(()=>JSON.parse(getSectionValue('military_fighter_records_v1')!).length===4);
  const cleared=JSON.parse(getSectionValue('military_fighter_records_v1')!);
- if(cleared.length!==5||cleared.map((item:any)=>item.sequence).join(',')!=='1,2,3,4,5'||cleared[3].weaponNumber!==''||cleared[4].fighterName!=='مقاتل 5')throw new Error('Fighter slot deletion failed');
+ if(cleared.length!==4||cleared.map((item:any)=>item.sequence).join(',')!=='1,2,3,4'||cleared[3].id!=='5'||cleared[3].weaponNumber!=='104'||cleared[3].fighterName!=='مقاتل 5')throw new Error('Fighter deletion or renumber failed');
  await setSectionValue('military_folder_personnel_records_v1',JSON.stringify({file_security:[{id:'old',fullName:'قديم'}],file_intel:[{id:'retained',fullName:'محفوظ'}]}));
  root.render(<FolderPersonnelRecords folderId="file_security" folderName="الأمن" folderLabel="شعبة الأمن" isDarkMode onBack={()=>{}} onShowToast={()=>{}}/>);
  await waitFor(()=>!!host.textContent?.includes('شعبة الأمن'));
@@ -30,5 +51,5 @@ export async function verifySectionWorkflows(){
  await waitFor(()=>JSON.parse(getSectionValue('military_folder_personnel_records_v1')!).file_security[0]?.fullName==='جديد');
  const folders=JSON.parse(getSectionValue('military_folder_personnel_records_v1')!);
  if(folders.file_security.length!==1||folders.file_intel[0].fullName!=='محفوظ')throw new Error('Security replace damaged folders');
- root.unmount();host.remove();return {fighterSlotPreserved:true,securityImportReplaced:true,otherFoldersPreserved:true};
+ root.unmount();host.remove();return {fighterDeletedAndRenumbered:true,remainingRecordsPreserved:true,securityImportReplaced:true,otherFoldersPreserved:true,userImport,invalidExcelPreservedData:!!userBytes};
 }

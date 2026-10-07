@@ -57,7 +57,7 @@ const readRecords = (): FighterRecord[] => {
 };
 
 const nextSequence = (records: FighterRecord[]) => String(records.reduce((highest, record) => {
-  const value = Number.parseInt(record.sequence.replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))), 10);
+  const value = Number.parseInt(String(record.sequence ?? '').replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))), 10);
   return Number.isFinite(value) ? Math.max(highest, value) : highest;
 }, 0) + 1);
 
@@ -82,6 +82,12 @@ const cleanDigitsAndLetters = (text: string): string => {
 const readCell = (row: Record<string, unknown>, keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  const normalizeHeader = (key: string) => normalizeSearchText(key).replace(/[\s_\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '');
+  for (const key of keys) {
+    const actualKey = Object.keys(row).find(candidate => normalizeHeader(candidate) === normalizeHeader(key));
+    const value = actualKey === undefined ? undefined : row[actualKey];
     if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
   }
   return '';
@@ -259,13 +265,13 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
   };
 
   const deleteRecord = async (record: FighterRecord) => {
-    const nextRecords = records.map((item) => item.id === record.id ? {...item,...EMPTY_FORM,sequence:item.sequence} : item);
+    const nextRecords = records.filter((item) => item.id !== record.id).map((item,index) => ({...item,sequence:String(index+1)}));
     try { await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords)); }
     catch { onShowToast('warning','تعذر الحفظ','لم تُغيَّر السجلات. حاول الحفظ مجدداً.');return; }
     setRecords(nextRecords);
     setExpandedId(null);
     setPendingDeleteId(null);
-    onShowToast('success', 'تم تفريغ السجل', `حُذف اسم ${record.fighterName} وبياناته، وبقي التسلسل ${record.sequence}.`);
+    onShowToast('success', 'تم حذف السجل', `حُذف ${record.fighterName || `السجل رقم ${record.sequence}`} وأُعيد ترتيب التسلسل دون فراغات.`);
   };
 
   const exportExcel = (toExport = records) => {
@@ -296,10 +302,16 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
 
   const importExcel = async (file: File | undefined) => {
     if (!file) return;
+    let saving = false;
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const sheet = workbook.Sheets['المقاتلون'] || workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error('لا توجد ورقة بيانات قابلة للقراءة داخل الملف.');
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false });
+      const nameKeys = ['اسم المقاتل', 'الاسم', 'الاسم الرباعي واللقب', 'fighterName'];
+      if (rows.length && !Object.keys(rows[0]).some(key => readCell({[key]:'حقل'}, nameKeys))) {
+        throw new Error('لم يتم التعرف على عمود اسم المقاتل في هذه الورقة. لم تُغيَّر السجلات الحالية.');
+      }
       const embeddedImages = readEmbeddedFilesSheet(workbook, FIGHTER_IMAGES_SHEET);
       const startSequence = Number.parseInt(nextSequence(records), 10);
       const imported = rows.map((row, index): FighterRecord => {
@@ -308,7 +320,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
         return {
           id: globalThis.crypto?.randomUUID?.() || `fighter_excel_${Date.now()}_${index}`,
           sequence,
-          fighterName: readCell(row, ['اسم المقاتل', 'الاسم']),
+          fighterName: readCell(row, nameKeys),
           weaponType: readCell(row, ['نوع السلاح']),
           weaponNumber: readCell(row, ['رقم السلاح']),
           magazinesCount: readCell(row, ['عدد المخازن']),
@@ -318,7 +330,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
           imageDataUrl: embeddedImage?.dataUrl || '',
           createdAt: new Date().toISOString(),
         };
-      }).filter((record) => record.fighterName || record.sequence);
+      }).filter((record, index) => record.fighterName || readCell(rows[index], ['التسلسل', 'ت']));
       if (!imported.length) {
         onShowToast('warning', 'لم يتم العثور على أسماء', 'تأكد أن الملف يحتوي عمود اسم المقاتل.');
         return;
@@ -347,11 +359,15 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
           addedCount += 1;
         }
       });
+      saving = true;
       await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
       setRecords(nextRecords);
       onShowToast('success', 'تم رفع ملف المقاتلين دون فقدان الصور', `أضيف ${addedCount} سجل وحُدّث ${updatedCount} سجل مع الحفاظ على الصور.`);
-    } catch {
-      onShowToast('warning', 'تعذر قراءة ملف Excel', 'تأكد من اختيار ملف Excel صالح.');
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      const message = error instanceof Error ? error.message : 'لم يتم تغيير السجلات الحالية.';
+      onShowToast('warning', saving ? 'تعذر حفظ بيانات Excel' : 'تعذر رفع ملف Excel',
+        saving ? (name === 'QuotaExceededError' ? 'الملف قُرئ بنجاح، لكن مساحة التخزين المحلية لم تكفِ. الملف الأصلي والسجلات الحالية لم تُغيَّر.' : `الملف قُرئ، لكن تعذر الحفظ المحلي (${name || 'خطأ حفظ'}). لم تُغيَّر السجلات الحالية. حدّث الصفحة ثم أعد المحاولة.`) : message);
     } finally {
       if (excelInputRef.current) excelInputRef.current.value = '';
     }
@@ -456,7 +472,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
       </div>
       <div className="text-[11px] text-neutral-400 px-1">{filteredRecords.length} سجل ظاهر</div>
       </>}
-      <ConfirmDialog isOpen={Boolean(pendingDeleteRecord)} isDarkMode={isDarkMode} title="تأكيد تفريغ سجل المقاتل" confirmLabel="نعم، تفريغ السجل" message={pendingDeleteRecord ? `هل تريد حذف اسم «${pendingDeleteRecord.fighterName}» والسلاح والصورة مع إبقاء التسلسل ${pendingDeleteRecord.sequence}؟` : ''} onConfirm={() => { if (pendingDeleteRecord) deleteRecord(pendingDeleteRecord); }} onCancel={() => setPendingDeleteId(null)} />
+      <ConfirmDialog isOpen={Boolean(pendingDeleteRecord)} isDarkMode={isDarkMode} title="تأكيد حذف سجل المقاتل" message={pendingDeleteRecord ? `هل تريد حذف «${pendingDeleteRecord.fighterName || `السجل رقم ${pendingDeleteRecord.sequence}`}» كاملاً؟ سيتم ترتيب تسلسل السجلات الباقية دون فراغات.` : ''} onConfirm={() => { if (pendingDeleteRecord) deleteRecord(pendingDeleteRecord); }} onCancel={() => setPendingDeleteId(null)} />
     </div>
   );
 };
