@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { militaryBanner, sidebarPortrait, sidebarSoldiers } from '../brandAssets';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -64,7 +65,7 @@ const statusTone = (status: string): string => {
 
 const safeStoredCount = (key: string): number => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    const parsed = JSON.parse(getSectionValue(key) || '[]');
     return Array.isArray(parsed) ? parsed.length : 0;
   } catch {
     return 0;
@@ -91,15 +92,15 @@ export const MilitaryDashboard: React.FC<MilitaryDashboardProps> = ({
   const [highlightFilter, setHighlightFilter] = useState('all');
   const [highlightedNames, setHighlightedNames] = useState<string[]>(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem('military_highlighted_names_v1') || '[]');
+      const stored = JSON.parse(getSectionValue('military_highlighted_names_v1') || '[]');
       return Array.isArray(stored) ? stored.filter(value => typeof value === 'string') : [];
     } catch { return []; }
   });
   const highlightKey = (record: MilitaryRecord) => record.military_id || String(record.seq);
-  const toggleHighlight = (record: MilitaryRecord) => {
+  const toggleHighlight = async (record: MilitaryRecord) => {
     const key = highlightKey(record);
     const next = highlightedNames.includes(key) ? highlightedNames.filter(item => item !== key) : [...highlightedNames, key];
-    localStorage.setItem('military_highlighted_names_v1', JSON.stringify(next));
+    await setSectionValue('military_highlighted_names_v1', JSON.stringify(next));
     setHighlightedNames(next);
   };
   const [page, setPage] = useState(1);

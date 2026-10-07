@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { MilitaryRecord } from './types';
 import { blobToDataUrl } from './excelEmbeddedFiles';
 import { listAllPersonnelFiles, replacePersonnelFiles, type StoredPersonnelFile } from './personnelPdfStorage';
+import {getSectionValue, replaceSectionValues, flushSectionStorage} from './sectionStorage';
 
 export const MAIN_BACKUP_KEY = 'military_main_records_backup_v1';
 const sections: Record<string, string> = {
@@ -19,11 +20,14 @@ export interface SystemBackup {
  files: (Omit<StoredPersonnelFile, 'blob'> & { dataUrl: string })[];
 }
 const digest = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))).map(x => x.toString(16).padStart(2, '0')).join('');
-export const createSystemBackup = async (records: MilitaryRecord[]): Promise<SystemBackup> => ({
+export const createSystemBackup = async (records: MilitaryRecord[]): Promise<SystemBackup> => {
+ await flushSectionStorage();
+ return ({
  format: 'military-system-backup', version: 1, createdAt: new Date().toISOString(), records,
- storage: Object.fromEntries(Object.keys(sections).map(key => [key, localStorage.getItem(key)])),
+ storage: Object.fromEntries(Object.keys(sections).map(key => [key, getSectionValue(key)])),
  files: await Promise.all((await listAllPersonnelFiles()).map(async ({ blob, ...file }) => ({ ...file, dataUrl: await blobToDataUrl(blob) }))),
 });
+};
 export const buildSystemWorkbook = async (backup: SystemBackup) => {
  const workbook = XLSX.utils.book_new();
  const payload = JSON.stringify(backup);
@@ -73,15 +77,16 @@ export const parseSystemWorkbook = async (workbook: XLSX.WorkBook): Promise<Syst
  return backup;
 };
 export const restoreSystemBackup = async (backup: SystemBackup) => {
+ await flushSectionStorage();
  // Convert every attachment before changing any stored data. IndexedDB replacement is atomic.
  const files = await Promise.all(backup.files.map(async ({dataUrl,...file}) => ({...file,blob:await (await fetch(dataUrl)).blob()})));
  const changes = {...backup.storage, [MAIN_BACKUP_KEY]:JSON.stringify(backup.records)};
- const previous = Object.fromEntries(Object.keys(changes).map(key=>[key,localStorage.getItem(key)]));
+ const previous = Object.fromEntries(Object.keys(changes).map(key=>[key,getSectionValue(key)]));
  try {
-  for (const [key,value] of Object.entries(changes)) value === null ? localStorage.removeItem(key) : localStorage.setItem(key,value);
+  await replaceSectionValues(changes,false);
   await replacePersonnelFiles(files);
  } catch(error) {
-  for (const [key,value] of Object.entries(previous)) value === null ? localStorage.removeItem(key) : localStorage.setItem(key,value);
+  await replaceSectionValues(previous);
   throw error;
  }
 };

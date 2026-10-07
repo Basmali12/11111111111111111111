@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { PdfDocumentPreview } from './PdfDocumentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
@@ -134,7 +135,7 @@ const EMPTY_FORM: RecordFormState = {
 
 const readStore = (): FolderPersonnelStore => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const parsed = JSON.parse(getSectionValue(STORAGE_KEY) || '{}');
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
@@ -166,12 +167,12 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
   const selection = useExcelSelection(records, (record) => record.id);
   const [query, setQuery] = useState(searchTarget?.category === 'folders' ? searchTarget.record.fullName || '' : '');
   const [showForm, setShowForm] = useState(false);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const stored = JSON.parse(getSectionValue(STORAGE_KEY) || '{}');
     const list = stored[folderId] || [];
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, [folderId]: next }));
+    await setSectionValue(STORAGE_KEY, JSON.stringify({ ...stored, [folderId]: next }));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -355,14 +356,14 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
     }
   }, [searchTarget, folderId]);
 
-  const deleteRecord = () => {
+  const deleteRecord = async () => {
     const record = records.find((item) => item.id === pendingDeleteId);
     if (!record) { setPendingDeleteId(null); return; }
     const nextRecords = records.filter((item) => item.id !== record.id);
     try {
       const store = readStore();
       store[folderId] = nextRecords;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(store));
     } catch {
       onShowToast('warning', 'تعذر الحذف', 'لم يُحفظ التغيير في المتصفح. حاول مرة أخرى.');
       return;
@@ -373,7 +374,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
     onShowToast('success', 'تم حذف المنتسب', `حُذف سجل ${record.fullName} من ${folderName}.`);
   };
 
-  const saveRecord = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveRecord = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.militaryNumber.trim() || !form.fullName.trim()) {
@@ -427,7 +428,7 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
     try {
       const store = readStore();
       store[folderId] = nextRecords;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(store));
     } catch {
       onShowToast('warning', 'تعذر الحفظ', 'لم تُحفظ التغييرات في المتصفح. حاول مرة أخرى.');
       return;
@@ -604,12 +605,12 @@ export const FolderPersonnelRecords: React.FC<FolderPersonnelRecordsProps> = ({
         onShowToast('warning', 'ملف Excel فارغ', 'لم يتم العثور على سجلات قابلة للإضافة.');
         return;
       }
-      const nextRecords = [...records, ...imported];
+      const nextRecords = isSecurityFolder ? imported : [...records, ...imported];
       const store = readStore();
       store[folderId] = nextRecords;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(store));
       setRecords(nextRecords);
-      onShowToast('success', 'تم رفع Excel', `تمت إضافة ${imported.length} سجل إلى ${folderName} فقط.`);
+      onShowToast('success', 'تم رفع Excel', isSecurityFolder ? `استُبدلت سجلات ${folderName} بـ ${imported.length} سجل من الملف الجديد.` : `تمت إضافة ${imported.length} سجل إلى ${folderName} فقط.`);
     } catch {
       onShowToast('warning', 'تعذر قراءة Excel', 'تأكد من اختيار ملف Excel صالح وبالعناوين الصحيحة.');
     } finally {

@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import {
@@ -71,7 +72,7 @@ type CommTab = 'general' | 'regiment';
 
 const readStorageRecords = (key: string): CommunicationRecord[] => {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = getSectionValue(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -118,12 +119,10 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
   // These calculations and actions belong exclusively to general records.
   const currentRecords = generalRecords;
 
-  const setCurrentRecords = (updater: (prev: CommunicationRecord[]) => CommunicationRecord[]) => {
-    setGeneralRecords((prev) => {
-      const next = updater(prev);
-      localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+  const setCurrentRecords = async (updater: (prev: CommunicationRecord[]) => CommunicationRecord[]) => {
+    const next = updater(generalRecords);
+    await setSectionValue(GENERAL_STORAGE_KEY, JSON.stringify(next));
+    setGeneralRecords(next);
   };
 
   const selection = useExcelSelection(currentRecords, (r) => r.id);
@@ -198,7 +197,7 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
   };
 
   // Save record
-  const handleSaveRecord = (e: React.FormEvent) => {
+  const handleSaveRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.officerName.trim()) {
       onShowToast('warning', 'حقل مطلوب', 'يرجى إدخال اسم ضابط الاتصالات.');
@@ -226,7 +225,7 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
       regimentName: form.regimentName?.trim(),
     };
 
-    setCurrentRecords((prev) => {
+    await setCurrentRecords((prev) => {
       if (existing) {
         return prev.map((item) => (item.id === existing.id ? recordToSave : item));
       }
@@ -242,9 +241,9 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
   };
 
   // Delete record
-  const handleDeleteRecord = (id: string) => {
+  const handleDeleteRecord = async (id: string) => {
     const record = currentRecords.find((r) => r.id === id);
-    setCurrentRecords((prev) => prev.filter((r) => r.id !== id));
+    await setCurrentRecords((prev) => prev.filter((r) => r.id !== id));
     setPendingDeleteId(null);
     if (expandedId === id) setExpandedId(null);
     onShowToast('success', 'حذف السجل', `تم حذف سجل «${record?.officerName || 'الاتصالات'}» بنجاح.`);
@@ -364,7 +363,7 @@ export const CommunicationsSection: React.FC<CommunicationsSectionProps> = ({
         return;
       }
 
-      setCurrentRecords((prev) => [...imported, ...prev]);
+      await setCurrentRecords((prev) => [...imported, ...prev]);
       onShowToast('success', 'تم استيراد Excel', `تمت إضافة ${imported.length} سجل اتصالات بنجاح.`);
     } catch {
       onShowToast('warning', 'خطأ في القراءة', 'تأكد من اختيار ملف Excel صالح ومطابق.');

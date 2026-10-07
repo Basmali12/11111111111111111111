@@ -1,4 +1,4 @@
-const native = (window as any).desktopBackup;
+const native = typeof window === 'undefined' ? undefined : (window as any).desktopBackup;
 export function desktopFileHandle(target:any,name?:string):any {
   const handle = {
     name:name || target.name, kind:name ? 'file' : target.kind,

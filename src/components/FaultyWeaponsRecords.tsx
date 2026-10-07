@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ChevronUp, FileDown, FileUp, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
@@ -36,7 +37,7 @@ const EMPTY_FORM: FaultyWeaponForm = {
 
 const readRecords = (): FaultyWeaponRecord[] => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -175,7 +176,7 @@ export const FaultyWeaponsRecords: React.FC<FaultyWeaponsRecordsProps> = ({ isDa
     setShowForm(true);
   };
 
-  const saveRecord = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveRecord = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.weaponType.trim()) {
       onShowToast('warning', 'حقل مطلوب', 'أدخل نوع السلاح.');
@@ -194,15 +195,15 @@ export const FaultyWeaponsRecords: React.FC<FaultyWeaponsRecordsProps> = ({ isDa
     const nextRecords = existing
       ? records.map((item) => item.id === existing.id ? record : item)
       : [...records, record];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
     setRecords(nextRecords);
     closeForm();
     onShowToast('success', existing ? 'تم تعديل السلاح' : 'تم حفظ السلاح', `تم حفظ سجل السلاح ${record.weaponType}.`);
   };
 
-  const deleteRecord = (record: FaultyWeaponRecord) => {
+  const deleteRecord = async (record: FaultyWeaponRecord) => {
     const nextRecords = records.filter((item) => item.id !== record.id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
     setRecords(nextRecords);
     setExpandedId(null);
     setPendingDeleteId(null);
@@ -247,7 +248,7 @@ export const FaultyWeaponsRecords: React.FC<FaultyWeaponsRecordsProps> = ({ isDa
         return;
       }
       const nextRecords = [...records, ...imported];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
       setRecords(nextRecords);
       onShowToast('success', 'تم رفع ملف الأسلحة', `أضيف ${imported.length} سجل.`);
     } catch {

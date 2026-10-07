@@ -1,7 +1,8 @@
-import * as XLSX from 'xlsx';
+import {generateWorkbookInBackground} from './workbookBackground';
 import type { MilitaryRecord } from './types';
-import { createSystemBackup, buildSystemWorkbook, MAIN_BACKUP_KEY } from './systemBackup';
+import { createSystemBackup, MAIN_BACKUP_KEY } from './systemBackup';
 import { getActiveDirectoryHandle, reconnectBackupDirectory } from './fileSystemStorage';
+import {SECTION_STORAGE_KEYS,getSectionValue} from './sectionStorage';
 
 export const AUTO_BACKUP_FILENAME = 'نسخة_النظام_الاحتياطية.xlsx';
 export const BACKUP_CHANGED_EVENT = 'military-backup-changed';
@@ -10,7 +11,7 @@ export async function writeCompleteBackup(directory: any, records: MilitaryRecor
  if (!directory) throw new Error('اختر مجلد النسخة الاحتياطية أولاً.');
  onProgress('جارٍ تجهيز السجلات والصور وPDF…');
  const backup = await createSystemBackup(records);
- const bytes = XLSX.write(await buildSystemWorkbook(backup), {type:'array',bookType:'xlsx',compression:true});
+ const bytes = await generateWorkbookInBackground({kind:'backup',backup});
  onProgress('جارٍ إنشاء ملف النسخة داخل المجلد المختار…');
  const file = directory.kind === 'file' ? directory : await directory.getFileHandle(AUTO_BACKUP_FILENAME, {create:true});
  const writable = await file.createWritable();
@@ -30,10 +31,7 @@ export function startAutomaticBackup(getRecords:()=>MilitaryRecord[], onStatus:(
  const changed=()=>{attachmentRevision++; void tick();};
  const snapshot=()=>{
   const map=new Map<string,string>();
-  for(let i=0;i<localStorage.length;i++) {
-   const key=localStorage.key(i)!;
-   if(key.startsWith('military_') && !key.startsWith('military_camo_')) map.set(key,localStorage.getItem(key)!);
-  }
+  for(const key of SECTION_STORAGE_KEYS) {const value=getSectionValue(key);if(value!==null)map.set(key,value);}
   map.set(MAIN_BACKUP_KEY,JSON.stringify(getRecords()));
   return map;
  };

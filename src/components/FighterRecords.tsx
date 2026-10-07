@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -48,7 +49,7 @@ const EMPTY_FORM: FighterForm = {
 
 const readRecords = (): FighterRecord[] => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -96,12 +97,12 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const stored = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(next));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -225,7 +226,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
     reader.readAsDataURL(file);
   };
 
-  const saveRecord = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveRecord = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.sequence.trim() || !form.fighterName.trim()) {
       onShowToast('warning', 'حقول مطلوبة', 'أدخل التسلسل واسم المقاتل.');
@@ -247,7 +248,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
     };
     const nextRecords = existing ? records.map((item) => item.id === existing.id ? record : item) : [...records, record];
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
     } catch {
       onShowToast('warning', 'تعذر الحفظ', 'مساحة التخزين لا تكفي للصورة. اختر صورة أصغر.');
       return;
@@ -257,13 +258,14 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
     onShowToast('success', existing ? 'تم تعديل المقاتل' : 'تم حفظ المقاتل', `تم حفظ سجل ${record.fighterName} بنجاح.`);
   };
 
-  const deleteRecord = (record: FighterRecord) => {
-    const nextRecords = records.filter((item) => item.id !== record.id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+  const deleteRecord = async (record: FighterRecord) => {
+    const nextRecords = records.map((item) => item.id === record.id ? {...item,...EMPTY_FORM,sequence:item.sequence} : item);
+    try { await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords)); }
+    catch { onShowToast('warning','تعذر الحفظ','لم تُغيَّر السجلات. حاول الحفظ مجدداً.');return; }
     setRecords(nextRecords);
     setExpandedId(null);
     setPendingDeleteId(null);
-    onShowToast('success', 'تم حذف المقاتل', `حُذف سجل ${record.fighterName}.`);
+    onShowToast('success', 'تم تفريغ السجل', `حُذف اسم ${record.fighterName} وبياناته، وبقي التسلسل ${record.sequence}.`);
   };
 
   const exportExcel = (toExport = records) => {
@@ -316,7 +318,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
           imageDataUrl: embeddedImage?.dataUrl || '',
           createdAt: new Date().toISOString(),
         };
-      }).filter((record) => record.fighterName);
+      }).filter((record) => record.fighterName || record.sequence);
       if (!imported.length) {
         onShowToast('warning', 'لم يتم العثور على أسماء', 'تأكد أن الملف يحتوي عمود اسم المقاتل.');
         return;
@@ -345,7 +347,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
           addedCount += 1;
         }
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
       setRecords(nextRecords);
       onShowToast('success', 'تم رفع ملف المقاتلين دون فقدان الصور', `أضيف ${addedCount} سجل وحُدّث ${updatedCount} سجل مع الحفاظ على الصور.`);
     } catch {
@@ -454,7 +456,7 @@ export const FighterRecords: React.FC<FighterRecordsProps> = ({ isDarkMode, onBa
       </div>
       <div className="text-[11px] text-neutral-400 px-1">{filteredRecords.length} سجل ظاهر</div>
       </>}
-      <ConfirmDialog isOpen={Boolean(pendingDeleteRecord)} isDarkMode={isDarkMode} title="تأكيد حذف المقاتل" message={pendingDeleteRecord ? `هل تريد حذف سجل «${pendingDeleteRecord.fighterName}» نهائيًا؟` : ''} onConfirm={() => { if (pendingDeleteRecord) deleteRecord(pendingDeleteRecord); }} onCancel={() => setPendingDeleteId(null)} />
+      <ConfirmDialog isOpen={Boolean(pendingDeleteRecord)} isDarkMode={isDarkMode} title="تأكيد تفريغ سجل المقاتل" confirmLabel="نعم، تفريغ السجل" message={pendingDeleteRecord ? `هل تريد حذف اسم «${pendingDeleteRecord.fighterName}» والسلاح والصورة مع إبقاء التسلسل ${pendingDeleteRecord.sequence}؟` : ''} onConfirm={() => { if (pendingDeleteRecord) deleteRecord(pendingDeleteRecord); }} onCancel={() => setPendingDeleteId(null)} />
     </div>
   );
 };

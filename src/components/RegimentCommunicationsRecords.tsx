@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -72,7 +73,7 @@ interface RegimentCommunicationsRecordsProps {
 
 const readRecords = (): RegimentCommRecord[] => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = getSectionValue(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -120,20 +121,20 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const stored = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(next));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
   const [form, setForm] = useState<RegimentCommFormState>(EMPTY_FORM);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
-  const saveToStorage = (updatedRecords: RegimentCommRecord[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedRecords));
+  const saveToStorage = async (updatedRecords: RegimentCommRecord[]) => {
+    await setSectionValue(STORAGE_KEY, JSON.stringify(updatedRecords));
     setRecords(updatedRecords);
   };
 
@@ -204,7 +205,7 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
   };
 
   // Save record
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim()) {
       onShowToast('warning', 'حقل مطلوب', 'يرجى إدخال اسم المنتسب/المستلم.');
@@ -239,7 +240,7 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
     }
 
     try {
-      saveToStorage(nextRecords);
+      await saveToStorage(nextRecords);
       closeForm();
       onShowToast(
         'success',
@@ -251,10 +252,10 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const target = records.find((r) => r.id === id);
     const next = records.filter((r) => r.id !== id);
-    saveToStorage(next);
+    await saveToStorage(next);
     setPendingDeleteId(null);
     if (expandedId === id) setExpandedId(null);
     onShowToast('success', 'حذف السجل', `تم حذف سجل «${target?.fullName || 'اتصالات الفوج'}» بنجاح.`);
@@ -432,7 +433,7 @@ export const RegimentCommunicationsRecords: React.FC<RegimentCommunicationsRecor
         }
       });
 
-      saveToStorage(nextRecords);
+      await saveToStorage(nextRecords);
       onShowToast(
         'success',
         'تم استيراد Excel',

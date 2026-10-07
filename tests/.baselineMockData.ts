@@ -1,4 +1,4 @@
-import type { MilitaryRecord } from './types';
+import type { MilitaryRecord } from '../src/types';
 
 export interface PersonnelFieldSchema {
   key: string;
@@ -608,15 +608,12 @@ export function buildCompleteMilitaryDetails(
   // If rawRowData is provided from Excel, map fields with fuzzy matching
   if (rawRowData) {
     const rawKeys = Object.keys(rawRowData);
-    const normalizedRawKeys = new Map<string,string>();
-    for (const key of rawKeys) {
-      const normalized = normalizeColumnKey(key);
-      if (!normalizedRawKeys.has(normalized)) normalizedRawKeys.set(normalized,key);
-    }
     const getRawVal = (candidates: string[]): string => {
       for (const cand of candidates) {
         const normCand = normalizeColumnKey(cand);
-        const matchKey = normalizedRawKeys.get(normCand);
+        const matchKey = rawKeys.find(
+          (k) => normalizeColumnKey(k) === normCand
+        );
         if (matchKey && rawRowData[matchKey] !== undefined && rawRowData[matchKey] !== null) {
           const val = String(rawRowData[matchKey]).trim();
           if (val) return val;
@@ -754,16 +751,13 @@ export function buildCompleteMilitaryDetails(
   };
 
   const existingKeys = Object.keys(existing);
-  const normalizedExistingKeys = new Map<string,string>();
-  for (const key of existingKeys) {
-    const normalized = normalizeColumnKey(key);
-    if (!normalizedExistingKeys.has(normalized)) normalizedExistingKeys.set(normalized,key);
-  }
   const getExistingValue = (field: PersonnelFieldSchema): string => {
     const candidates = [field.key, ...(field.sourceHeaders || []), field.label];
     for (const candidate of candidates) {
       const normalizedCandidate = normalizeColumnKey(candidate);
-      const matchKey = normalizedExistingKeys.get(normalizedCandidate);
+      const matchKey = existingKeys.find(
+        (key) => normalizeColumnKey(key) === normalizedCandidate
+      );
       if (matchKey && existing[matchKey] !== undefined && existing[matchKey] !== null) {
         const value = String(existing[matchKey]).trim();
         if (value) return value;

@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -16,7 +17,7 @@ const storageKey = (kind: AttendanceKind) => `military_${kind}_records_v1`;
 const titleOf = (kind: AttendanceKind) => kind === 'absence' ? 'الغياب' : 'الحضور';
 const readRecords = (kind: AttendanceKind): AttendanceRecord[] => {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(storageKey(kind)) || '[]');
+    const parsed: unknown = JSON.parse(getSectionValue(storageKey(kind)) || '[]');
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((item): item is AttendanceRecord =>
       item && typeof item.id === 'string' && Number.isSafeInteger(item.sequence) &&
@@ -36,12 +37,12 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
   const searchTarget = target?.category === 'additional' && ['الغيابات', 'الحضور'].includes(target.source || '') ? target : null;
   const [records, setRecords] = useState<AttendanceRecord[]>(() => readRecords(kind));
   const [query, setQuery] = useState(searchTarget?.record.fullName || '');
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(storageKey(kind)) || '[]');
+    const stored = JSON.parse(getSectionValue(storageKey(kind)) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(storageKey(kind), JSON.stringify(next));
+    await setSectionValue(storageKey(kind), JSON.stringify(next));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -59,9 +60,9 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
   const inputClass = `w-full mt-1.5 rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-emerald-500 ${isDarkMode ? 'bg-[#101b19] border-emerald-900/70 text-white' : 'bg-white border-slate-300 text-slate-900'}`;
   const cardClass = isDarkMode ? 'bg-[#15211e] border-emerald-900/70 text-white' : 'bg-slate-50 border-slate-300 text-slate-900';
 
-  const persist = (next: AttendanceRecord[]) => {
+  const persist = async (next: AttendanceRecord[]) => {
     try {
-      localStorage.setItem(storageKey(kind), JSON.stringify(next));
+      await setSectionValue(storageKey(kind), JSON.stringify(next));
       setRecords(next);
       return true;
     } catch {
@@ -79,7 +80,7 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
     setShowForm(true);
   };
   const update = (key: keyof AttendanceDraft, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const save = (event: React.FormEvent<HTMLFormElement>) => {
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const error = validateAttendanceDraft(kind, form);
     if (error) { onShowToast('warning', 'راجع الحقول', error); return; }
@@ -89,7 +90,7 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
       absenceReason: kind === 'absence' ? form.absenceReason.trim() : '', notes: form.notes.trim(),
       id: current?.id ?? crypto.randomUUID(), sequence: current?.sequence ?? nextAttendanceSequence(records),
     };
-    if (persist(current ? records.map((item) => item.id === current.id ? record : item) : [...records, record])) {
+    if (await persist(current ? records.map((item) => item.id === current.id ? record : item) : [...records, record])) {
       closeForm();
       onShowToast('success', current ? 'تم تعديل السجل' : 'تمت إضافة السجل', `حُفظ سجل ${titleOf(kind)} بنجاح.`);
     }
@@ -117,14 +118,14 @@ const AttendanceRegister: React.FC<RegisterProps> = ({ kind, isDarkMode, onShowT
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const result = mergeAttendanceWorkbook(kind, workbook, records, () => crypto.randomUUID());
       if (!result.added) { onShowToast('info', 'لا توجد سجلات جديدة', 'السجلات الموجودة لم تتغير.'); return; }
-      if (persist(result.records)) onShowToast('success', 'تم رفع Excel', `أُضيف ${result.added} سجل إلى ${titleOf(kind)} دون استبدال السجلات السابقة.`);
+      if (await persist(result.records)) onShowToast('success', 'تم رفع Excel', `أُضيف ${result.added} سجل إلى ${titleOf(kind)} دون استبدال السجلات السابقة.`);
     } catch (error) {
       onShowToast('warning', 'تعذر استيراد Excel', error instanceof Error ? error.message : 'تأكد من تنسيق ملف Excel.');
     }
   };
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDeleteId) return;
-    if (persist(records.filter((record) => record.id !== pendingDeleteId))) {
+    if (await persist(records.filter((record) => record.id !== pendingDeleteId))) {
       setPendingDeleteId(null);
       onShowToast('success', 'تم حذف السجل', `حُذف سجل ${titleOf(kind)} المحدد.`);
     }

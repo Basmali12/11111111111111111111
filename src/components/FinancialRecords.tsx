@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -56,7 +57,7 @@ const EMPTY_FORM: FinancialForm = {
 
 const readRecords = (): FinancialRecord[] => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -100,12 +101,12 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
   const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<FinancialRecord | null>(null);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const stored = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(next));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -185,7 +186,7 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
     reader.readAsDataURL(file);
   };
 
-  const saveRecord = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveRecord = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.beneficiaryName.trim()) {
       onShowToast('warning', 'حقل مطلوب', 'أدخل اسم المستفيد.');
@@ -204,7 +205,7 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
       ? records.map((item) => item.id === existing.id ? record : item)
       : [...records, record];
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
     } catch {
       onShowToast('warning', 'تعذر الحفظ', 'مساحة التخزين لا تكفي للمرفق. اختر ملفًا أصغر.');
       return;
@@ -214,9 +215,9 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
     onShowToast('success', existing ? 'تم تعديل السجل المالي' : 'تم حفظ السجل المالي', `تم حفظ سجل ${record.beneficiaryName}.`);
   };
 
-  const deleteRecord = (record: FinancialRecord) => {
+  const deleteRecord = async (record: FinancialRecord) => {
     const nextRecords = records.filter((item) => item.id !== record.id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
     setRecords(nextRecords);
     setExpandedId(null);
     setPendingDeleteId(null);
@@ -316,7 +317,7 @@ export const FinancialRecords: React.FC<FinancialRecordsProps> = ({ isDarkMode, 
           addedCount += 1;
         }
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(nextRecords));
       setRecords(nextRecords);
       onShowToast('success', 'تم رفع ملف السجل المالي', `أضيف ${addedCount} سجل وحُدّث ${updatedCount} سجل مع الحفاظ على الصور والمرفقات.`);
     } catch {

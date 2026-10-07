@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { startAutomaticBackup, AUTO_BACKUP_FILENAME } from '../automaticBackup';
 import { MAIN_BACKUP_KEY, createSystemBackup, buildSystemWorkbook, parseSystemWorkbook, restoreSystemBackup, systemBackupFilename } from '../systemBackup';
 import { AttachmentPreview } from './AttachmentPreview';
@@ -428,7 +429,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
 
   // Database in-memory state (Pandas DataFrame simulation)
   // Simulates the silent auto-load on startup from default_save_path
-  const [records, setRecords] = useState<MilitaryRecord[]>(() => { try { const saved = localStorage.getItem(MAIN_BACKUP_KEY); return saved ? JSON.parse(saved) : INITIAL_MILITARY_RECORDS; } catch { return INITIAL_MILITARY_RECORDS; } });
+  const [records, setRecords] = useState<MilitaryRecord[]>(() => { try { const saved = getSectionValue(MAIN_BACKUP_KEY); return saved ? JSON.parse(saved) : INITIAL_MILITARY_RECORDS; } catch { return INITIAL_MILITARY_RECORDS; } });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedRecordId, setSelectedRecordId] = useState<number | null>(null);
 
@@ -448,8 +449,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   backupRecordsRef.current = records;
   useEffect(() => startAutomaticBackup(() => backupRecordsRef.current, setAutomaticBackupStatus), [startAutomaticBackup, config.default_save_path]);
   useEffect(() => {
-    try { localStorage.setItem(MAIN_BACKUP_KEY, JSON.stringify(records)); }
-    catch { onShowToast('warning', 'الحفظ المحلي', 'تعذر حفظ الرئيسية محلياً. صدّر نسخة شاملة لحماية البيانات.'); }
+    void setSectionValue(MAIN_BACKUP_KEY, JSON.stringify(records)).catch(() => onShowToast('warning', 'الحفظ المحلي', 'تعذر حفظ الرئيسية محلياً. صدّر نسخة شاملة لحماية البيانات.'));
   }, [records]);
   const exportCompleteBackup = async () => {
     setBackupBusy(true);
@@ -506,7 +506,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   // إدارة وثائق ومستندات ومرفقات ملفات الفوج (الصادر، الوارد، إلخ)
   const [folderDocuments, setFolderDocuments] = useState<FolderDocumentItem[]>(() => {
     try {
-      const saved = localStorage.getItem('military_regiment_documents_v1');
+      const saved = getSectionValue('military_regiment_documents_v1');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -591,7 +591,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   };
 
   // حفظ صادر / وارد جديد
-  const handleSaveNewDocument = () => {
+  const handleSaveNewDocument = async () => {
     if (!newDocTitle.trim()) {
       setDocFormError('يرجى إدخال اسم الملف أولاً');
       return;
@@ -616,7 +616,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     const updated = [newDoc, ...folderDocuments];
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch (e) {
       console.warn('Storage limit reached, keeping in state:', e);
     }
@@ -633,7 +633,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   };
 
   // إضافة وحفظ كتاب / مستند مباشر من داخل الفولدر
-  const handleSaveInlineDocument = () => {
+  const handleSaveInlineDocument = async () => {
     if (!inlineDocTitle.trim() && !inlineDocNumber.trim()) {
       onShowToast('warning', 'تنبيه', 'يرجى إدخال اسم أو رقم الكتاب للإضافة.');
       return;
@@ -663,7 +663,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     const updated = [newDoc, ...folderDocuments];
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch (e) {
       console.warn('Storage limit reached, keeping in state:', e);
     }
@@ -703,33 +703,33 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     );
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch {}
 
     onShowToast('success', 'تمت إضافة المرفقات', `تم إرفاق ${newAttachments.length} ملف (صور / PDF) بنجاح.`);
   };
 
   // حذف ملف صادر أو وارد
-  const handleDeleteFolderDoc = (docId: string, e: React.MouseEvent) => {
+  const handleDeleteFolderDoc = async (docId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const updated = folderDocuments.filter((d) => d.id !== docId);
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch {}
     if (selectedDocId === docId) setSelectedDocId(null);
     onShowToast('info', 'تم الحذف', 'تم حذف الملف بنجاح.');
   };
 
   // حذف مرفق من ملف
-  const handleDeleteAttachment = (docId: string, attId: string, e?: React.MouseEvent) => {
+  const handleDeleteAttachment = async (docId: string, attId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const updated = folderDocuments.map((doc) =>
       doc.id === docId ? { ...doc, attachments: doc.attachments.filter((a) => a.id !== attId) } : doc
     );
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch {}
     onShowToast('info', 'تم حذف المرفق', 'تم حذف المرفق بنجاح.');
   };
@@ -790,7 +790,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   };
 
   // حفظ تعديل الكتاب
-  const handleSaveEditDoc = () => {
+  const handleSaveEditDoc = async () => {
     if (!editingDoc) return;
     if (!editDocTitle.trim()) {
       onShowToast('warning', 'تنبيه', 'يرجى كتابة عنوان أو اسم الكتاب.');
@@ -809,7 +809,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     );
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch {}
 
     setEditingDoc(null);
@@ -824,7 +824,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   };
 
   // حفظ اسم المرفق المعدل
-  const handleSaveRenameAtt = () => {
+  const handleSaveRenameAtt = async () => {
     if (!editingAtt || !editAttName.trim()) {
       setEditingAtt(null);
       return;
@@ -840,7 +840,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
     });
     setFolderDocuments(updated);
     try {
-      localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+      await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
     } catch {}
 
     // تحديث نافذة المعاينة إذا كانت مفتوحة
@@ -2276,7 +2276,7 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
                           }
                         });
                         setFolderDocuments(updated);
-                        localStorage.setItem('military_regiment_documents_v1', JSON.stringify(updated));
+                        await setSectionValue('military_regiment_documents_v1', JSON.stringify(updated));
                         onShowToast('success', 'تم رفع Excel دون فقدان المرفقات', `أضيف ${addedCount} سجل وحُدّث ${updatedCount} سجل داخل ${currentOpenedFile?.name || 'القسم'} مع الحفاظ على الصور وPDF.`);
                       } catch {
                         onShowToast('warning', 'تعذر قراءة Excel', 'تأكد من اختيار ملف Excel صالح وبالعناوين الصحيحة.');

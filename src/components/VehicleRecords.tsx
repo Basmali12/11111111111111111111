@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -70,15 +71,15 @@ const EMPTY_FORM: VehicleFormState = {
 
 const readRecords = (): VehicleRecord[] => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 };
 
-const persistRecords = (records: VehicleRecord[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+const persistRecords = async (records: VehicleRecord[]) => {
+  await setSectionValue(STORAGE_KEY, JSON.stringify(records));
 };
 
 export const getStoredVehicleCount = (): number => readRecords().length;
@@ -109,12 +110,12 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const stored = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(next));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -191,7 +192,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const saveRecord = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveRecord = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.vehicleType.trim() || !form.vehicleNumber.trim() || !form.driverName.trim()) {
       onShowToast('warning', 'حقول مطلوبة', 'أدخل نوع العجلة ورقم العجلة واسم السائق.');
@@ -217,7 +218,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
           },
         ];
 
-    persistRecords(nextRecords);
+    await persistRecords(nextRecords);
     setRecords(nextRecords);
     closeForm();
     onShowToast(
@@ -227,9 +228,9 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
     );
   };
 
-  const deleteRecord = (record: VehicleRecord) => {
+  const deleteRecord = async (record: VehicleRecord) => {
     const nextRecords = records.filter((item) => item.id !== record.id);
-    persistRecords(nextRecords);
+    await persistRecords(nextRecords);
     setRecords(nextRecords);
     if (expandedId === record.id) setExpandedId(null);
     if (editingId === record.id) closeForm();
@@ -237,7 +238,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
     onShowToast('info', 'تم حذف السيارة', `حُذف سجل سيارة السائق ${record.driverName}.`);
   };
 
-  const deleteAuthorizationImage = (record: VehicleRecord) => {
+  const deleteAuthorizationImage = async (record: VehicleRecord) => {
     const now = new Date().toISOString();
     const nextRecords = records.map((item) => item.id === record.id ? {
       ...item,
@@ -245,7 +246,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
       authorizationImageDataUrl: '',
       updatedAt: now,
     } : item);
-    persistRecords(nextRecords);
+    await persistRecords(nextRecords);
     setRecords(nextRecords);
     setPendingImageDeleteRecord(null);
     setPreviewRecord(null);
@@ -357,7 +358,7 @@ export const VehicleRecords: React.FC<VehicleRecordsProps> = ({
           addedCount += 1;
         }
       });
-      persistRecords(nextRecords);
+      await persistRecords(nextRecords);
       setRecords(nextRecords);
       onShowToast(
         'success',

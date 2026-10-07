@@ -1,0 +1,34 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import * as XLSX from 'xlsx';
+import {FighterRecords} from '../src/components/FighterRecords';
+import {FolderPersonnelRecords} from '../src/components/FolderPersonnelRecords';
+import {getSectionValue,setSectionValue} from '../src/sectionStorage';
+const waitFor=async(check:()=>boolean)=>{for(let i=0;i<100;i++){if(check())return;await new Promise(resolve=>setTimeout(resolve,30));}throw new Error('Workflow timeout: '+document.body.textContent?.slice(-1800));};
+export async function verifySectionWorkflows(){
+ const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const seed=Array.from({length:5},(_,i)=>({id:String(i+1),sequence:String(i+1),fighterName:`مقاتل ${i+1}`,weaponType:'سلاح',weaponNumber:String(100+i),imageDataUrl:'',imageName:'',magazinesCount:'2',ammunition:'30',notes:'',createdAt:new Date().toISOString()}));
+ await setSectionValue('military_fighter_records_v1',JSON.stringify(seed));
+ root.render(<FighterRecords isDarkMode onBack={()=>{}} onShowToast={()=>{}}/>);
+ await waitFor(()=>!!host.querySelector('[aria-label="فتح تفاصيل المقاتل مقاتل 4"]'));
+ (host.querySelector('[aria-label="فتح تفاصيل المقاتل مقاتل 4"]') as HTMLButtonElement).click();
+ await waitFor(()=>Array.from(host.querySelectorAll('button')).some(button=>button.textContent?.trim()==='حذف'));
+ Array.from(host.querySelectorAll('button')).find(button=>button.textContent?.trim()==='حذف')!.click();
+ await waitFor(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent?.includes('نعم، تفريغ السجل')));
+ Array.from(document.querySelectorAll('button')).find(button=>button.textContent?.includes('نعم، تفريغ السجل'))!.click();
+ await waitFor(()=>JSON.parse(getSectionValue('military_fighter_records_v1')!)[3].fighterName==='');
+ const cleared=JSON.parse(getSectionValue('military_fighter_records_v1')!);
+ if(cleared.length!==5||cleared.map((item:any)=>item.sequence).join(',')!=='1,2,3,4,5'||cleared[3].weaponNumber!==''||cleared[4].fighterName!=='مقاتل 5')throw new Error('Fighter slot deletion failed');
+ await setSectionValue('military_folder_personnel_records_v1',JSON.stringify({file_security:[{id:'old',fullName:'قديم'}],file_intel:[{id:'retained',fullName:'محفوظ'}]}));
+ root.render(<FolderPersonnelRecords folderId="file_security" folderName="الأمن" folderLabel="شعبة الأمن" isDarkMode onBack={()=>{}} onShowToast={()=>{}}/>);
+ await waitFor(()=>!!host.textContent?.includes('شعبة الأمن'));
+ await waitFor(()=>!!host.querySelector('input[type="file"][accept*="xlsx"]'));
+ const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet([{'الرقم العسكري':'22','الاسم الرباعي واللقب':'جديد'}]),'الأمن');
+ const input=host.querySelector('input[type="file"][accept*="xlsx"]') as HTMLInputElement;
+ const transfer=new DataTransfer();transfer.items.add(new File([XLSX.write(workbook,{type:'array',bookType:'xlsx'})],'security.xlsx'));
+ input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ await waitFor(()=>JSON.parse(getSectionValue('military_folder_personnel_records_v1')!).file_security[0]?.fullName==='جديد');
+ const folders=JSON.parse(getSectionValue('military_folder_personnel_records_v1')!);
+ if(folders.file_security.length!==1||folders.file_intel[0].fullName!=='محفوظ')throw new Error('Security replace damaged folders');
+ root.unmount();host.remove();return {fighterSlotPreserved:true,securityImportReplaced:true,otherFoldersPreserved:true};
+}

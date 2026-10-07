@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { SearchRecordNavigation } from './SearchRecordNavigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -64,7 +65,7 @@ const FOLDER_NAMES: Record<string, string> = {
 
 const safeParseStorage = <T,>(key: string, fallback: T): T => {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = getSectionValue(key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     return parsed ?? fallback;

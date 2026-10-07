@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -15,7 +16,7 @@ type LedgerForm = typeof emptyForm;
 
 const readEntries = (): GeneralLedgerEntry[] => {
   try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const value = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     return Array.isArray(value) ? value.filter((item): item is GeneralLedgerEntry =>
       item && typeof item.id === 'string' && Number.isSafeInteger(item.sequence) &&
       typeof item.incoming === 'string' && typeof item.outgoing === 'string' &&
@@ -43,12 +44,12 @@ export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, on
   const targetEntry = searchTarget?.source === 'السجل المالي العام' ? searchTarget.record : null;
   const [entries, setEntries] = useState<GeneralLedgerEntry[]>(readEntries);
   const selection = useExcelSelection(entries, (entry) => entry.id);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const stored = JSON.parse(getSectionValue(STORAGE_KEY) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await setSectionValue(STORAGE_KEY, JSON.stringify(next));
     setEntries(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -72,9 +73,9 @@ export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, on
   const panelStyle = { backgroundColor: isDarkMode ? '#12201d' : '#f8fafc', borderColor: isDarkMode ? '#275044' : '#cbd5e1' };
 
   const closeForm = () => { setShowForm(false); setEditingId(null); setForm(emptyForm); };
-  const persist = (next: GeneralLedgerEntry[]) => {
+  const persist = async (next: GeneralLedgerEntry[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      await setSectionValue(STORAGE_KEY, JSON.stringify(next));
       setEntries(next);
       return true;
     } catch {
@@ -82,7 +83,7 @@ export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, on
       return false;
     }
   };
-  const save = (event: React.FormEvent<HTMLFormElement>) => {
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const incoming = parseMoney(form.incoming);
     const outgoing = parseMoney(form.outgoing);
@@ -106,19 +107,19 @@ export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, on
       onShowToast('warning', 'الرصيد غير كافٍ', 'هذه الحركة تجعل الرصيد سالبًا هنا أو في سجل لاحق. راجع الوارد والمصروف.');
       return;
     }
-    if (persist(next)) {
+    if (await persist(next)) {
       closeForm();
       onShowToast('success', existing ? 'تم تعديل السجل' : 'تمت إضافة السجل', 'حُسب الرصيد المتبقي تلقائيًا.');
     }
   };
-  const remove = () => {
+  const remove = async () => {
     const next = entries.filter((entry) => entry.id !== pendingDeleteId);
     if (hasNegativeBalance(next)) {
       setPendingDeleteId(null);
       onShowToast('warning', 'لا يمكن حذف هذا الوارد', 'حذفه يجعل رصيد إحدى حركات الصرف اللاحقة سالبًا. عدّل الحركات أولًا.');
       return;
     }
-    if (persist(next)) {
+    if (await persist(next)) {
       setPendingDeleteId(null);
       onShowToast('success', 'تم حذف السجل', 'أُعيد حساب الرصيد المتبقي لكل الحركات.');
     }
@@ -155,7 +156,7 @@ export const GeneralFinancialLedger: React.FC<Props> = ({ isDarkMode, onBack, on
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const next = mergeGeneralLedgerWorkbook(workbook, entries);
-      if (persist(next)) onShowToast('success', 'تم رفع Excel', `أصبح في السجل العام ${next.length} حركة مالية مع صورها.`);
+      if (await persist(next)) onShowToast('success', 'تم رفع Excel', `أصبح في السجل العام ${next.length} حركة مالية مع صورها.`);
     } catch (error) {
       onShowToast('warning', 'تعذر رفع Excel', error instanceof Error ? error.message : 'اختر ملف Excel صالحًا للسجل العام.');
     } finally {

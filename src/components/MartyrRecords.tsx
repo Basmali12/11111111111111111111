@@ -1,3 +1,4 @@
+import {getSectionValue, setSectionValue} from '../sectionStorage';
 import { AttachmentPreview, withoutAttachment } from './AttachmentPreview';
 import { useSearchRecordTarget } from './SearchRecordNavigation';
 import React, { useMemo, useRef, useState } from 'react';
@@ -102,7 +103,7 @@ const EMPTY_FORM: MartyrFormState = {
 
 const readRecords = (storageKey: string): MartyrRecord[] => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const parsed = JSON.parse(getSectionValue(storageKey) || '[]');
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -174,12 +175,12 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
   const [expandedId, setExpandedId] = useState<string | null>(searchTarget?.record?.id || null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const removeAttachment = (src: string, id?: string) => {
+  const removeAttachment = async (src: string, id?: string) => {
     if (!id) { setForm(current => withoutAttachment(current, src)); return; }
-    const stored = JSON.parse(localStorage.getItem(registerConfig.storageKey) || '[]');
+    const stored = JSON.parse(getSectionValue(registerConfig.storageKey) || '[]');
     const list = stored;
     const next = list.map((item: any) => item.id === id ? withoutAttachment(item, src) : item);
-    localStorage.setItem(registerConfig.storageKey, JSON.stringify(next));
+    await setSectionValue(registerConfig.storageKey, JSON.stringify(next));
     setRecords(next);
     if (editingId === id) setForm(current => withoutAttachment(current, src));
   };
@@ -270,10 +271,10 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
     setShowForm(true);
   };
 
-  const deleteRecord = (record: MartyrRecord) => {
+  const deleteRecord = async (record: MartyrRecord) => {
     const nextRecords = records.filter((item) => item.id !== record.id);
     try {
-      localStorage.setItem(registerConfig.storageKey, JSON.stringify(nextRecords));
+      await setSectionValue(registerConfig.storageKey, JSON.stringify(nextRecords));
     } catch {
       onShowToast('warning', 'تعذر الحذف', 'لم يتم تحديث التخزين المحلي. حاول مجددًا.');
       return;
@@ -407,7 +408,7 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
           addedCount += 1;
         }
       });
-      localStorage.setItem(registerConfig.storageKey, JSON.stringify(nextRecords));
+      await setSectionValue(registerConfig.storageKey, JSON.stringify(nextRecords));
       setRecords(nextRecords);
       onShowToast('success', `تم رفع ملف ${registerConfig.tabLabel}`, `أضيف ${addedCount} سجل وحُدّث ${updatedCount} سجل${activeRegister === 'wounded' ? ' مع الحفاظ على صور التأييد' : ''}.`);
     } catch {
@@ -440,7 +441,7 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
     reader.readAsDataURL(file);
   };
 
-  const saveRecord = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveRecord = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.sequence.trim() || !form.martyrName.trim()) {
       onShowToast('warning', 'حقول مطلوبة', `أدخل التسلسل و${registerConfig.nameLabel}.`);
@@ -470,7 +471,7 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
       ? records.map((record) => (record.id === existingRecord.id ? nextRecord : record))
       : [...records, nextRecord];
     try {
-      localStorage.setItem(registerConfig.storageKey, JSON.stringify(nextRecords));
+      await setSectionValue(registerConfig.storageKey, JSON.stringify(nextRecords));
     } catch {
       onShowToast('warning', 'تعذر حفظ السجل', 'مساحة التخزين لا تكفي للصورة. اختر صورة أصغر ثم حاول مجددًا.');
       return;
@@ -768,10 +769,10 @@ export const MartyrRecords: React.FC<MartyrRecordsProps> = ({ isDarkMode, onShow
                     <div className="text-[11px] font-bold break-words">{value || '—'}</div>
                   </div>
                 ))}
-                {activeRegister === 'martyrs' && Boolean(record.documents?.length) && <div className="col-span-2 md:col-span-4"><MartyrDocuments documents={record.documents || []} onChange={documents => {
-                  const stored = JSON.parse(localStorage.getItem(registerConfig.storageKey) || '[]');
+                {activeRegister === 'martyrs' && Boolean(record.documents?.length) && <div className="col-span-2 md:col-span-4"><MartyrDocuments documents={record.documents || []} onChange={async documents => {
+                  const stored = JSON.parse(getSectionValue(registerConfig.storageKey) || '[]');
                   const next = stored.map((item: MartyrRecord) => item.id === record.id ? { ...item, documents } : item);
-                  localStorage.setItem(registerConfig.storageKey, JSON.stringify(next)); setRecords(next);
+                  await setSectionValue(registerConfig.storageKey, JSON.stringify(next)); setRecords(next);
                 }} /></div>}
                 {activeRegister === 'martyrs' && readChildren(record.children).length > 0 && <div className="col-span-2 md:col-span-4 border border-neutral-600 rounded-xl p-3">
                   <h3 className="text-sm font-bold mb-3">أسماء أبناء الشهداء</h3>
